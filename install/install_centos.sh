@@ -85,10 +85,11 @@ function setup_users() {
 
 function setup_firewall() {
     INFO Setting up firewall zones and basic rules
-    firewall-cmd --new-zone=outer
-    firewall-cmd --new-zone=inner
+    firewall-cmd --new-zone=outer --permanent
+    firewall-cmd --new-zone=inner --permanent
     #firewall-cmd --zone=outer --change-interface=eth1
     firewall-cmd --zone=outer --change-interface=eth0
+    firewall-cmd --runtime-to-permanent
 }
 
 function install_safe_import() {

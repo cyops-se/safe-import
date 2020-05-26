@@ -43,7 +43,7 @@ function download_safe_import() {
     #wget https://github.com/cyops-se/si-api/archive/master.zip -o si-api.zip
     #unzip si-api.zip
     #mv si-api-master ~/run/si-api
-    git clone https://github.com/cyops-se/si-api
+    git clone "https://github.com/cyops-se/si-api"
     mv si-api ~/run
     cd ~/run/si-api
     npm i
@@ -53,7 +53,7 @@ function download_safe_import() {
     #wget https://github.com/cyops-se/si-webui/archive/master.zip -o si-webui.zip
     #unzip si-webui.zip 'si-webui-master/dist/*'
     #mv si-webui-master/dist ~/run/si-webui
-    git clone https://github.com/cyops-se/si-webui
+    git clone "https://github.com/cyops-se/si-webui"
     mv si-webui/dist ~/run/si-webui
     rm -rf si-webui-master
 
@@ -65,7 +65,7 @@ function download_safe_import() {
 }
 
 function check_safe_import() {
-    INFO Checking safe-import sources (including dependencies) for malwarels 
+    INFO Checking safe-import sources and dependencies for malwares
     cd ~/run
     clamscan -ir
 }
