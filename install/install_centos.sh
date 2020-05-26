@@ -38,7 +38,7 @@ function setup_filesystem() {
     mkdir -p /safe-import/data/outer
     mkdir -p /safe-import/data/inner
     mkdir -p /safe-import/data/quarantine
-    chown -R si.si /data
+    chown -R si.si /safe-import
 }
 
 function install_basic() {
@@ -50,9 +50,6 @@ function install_basic() {
 }
 
 function install_clamav() {    
-    #clamav
-    installed = check_install clamav
-    
     yum -y install clamav-data clamav-update clamav
 
     sestatus
@@ -88,14 +85,14 @@ function setup_firewall() {
     firewall-cmd --new-zone=outer --permanent
     firewall-cmd --new-zone=inner --permanent
     #firewall-cmd --zone=outer --change-interface=eth1
-    firewall-cmd --zone=outer --change-interface=eth0
+    firewall-cmd --zone=inner --change-interface=eth0
     firewall-cmd --runtime-to-permanent
 }
 
 function install_safe_import() {
     cp -f *.sh ~si/
     chown si.si ~si/*.sh
-    su - si -c "sh ./install_si_centos.sh"
+    sudo -iu si sh ./install_si_centos.sh
 }
 
 function setup_nginx() {
