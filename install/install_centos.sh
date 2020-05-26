@@ -28,6 +28,8 @@ chmod +x ./bash-logger.sh
 chmod +x ./install_si_centos.sh
 source ./bash-logger.sh
 
+pwd=`pwd`
+
 function setup_users() {
     adduser si
 }
@@ -44,7 +46,7 @@ function install_basic() {
     INFO "Installing basic packages"
     yum update
     yum -y install epel-release
-    yum install -y git bubblewrap nodejs python3
+    yum install -y git bubblewrap nodejs python3 nginx
     yum groupinstall -y "Development Tools"
 }
 
@@ -78,7 +80,6 @@ EOD
 
 function install_golang() {
     INFO "Installing Go"
-    $pwd=`pwd`
     mkdir -p ~/download
     cd ~/download
     wget "https://dl.google.com/go/go1.14.3.linux-amd64.tar.gz"
@@ -88,7 +89,6 @@ function install_golang() {
     export PATH=$GOPATH/bin:$GOROOT/bin:$PATH
     echo "export GOROOT=/usr/local/go" >> /etc/profile
     echo "export PATH=$GOPATH/bin:$GOROOT/bin:$PATH" >> /etc/profile
-    cd $pwd
 }
 
 function setup_firewall() {
@@ -102,6 +102,7 @@ function setup_firewall() {
 
 function install_safe_import() {
     INFO "Invoking user specific tasks"
+    cd $pwd
     cp -f *.sh ~si/
     chown si.si ~si/*.sh
     sudo -iu si sh ./install_si_centos.sh
@@ -109,6 +110,7 @@ function install_safe_import() {
 
 function setup_nginx() {
     INFO "Setting up NGINX"
+    cd $pwd
     setsebool -P httpd_can_network_connect on
     chcon -Rt httpd_sys_content_t /home/si/run/si-webui
     chmod a+rx /home
@@ -116,7 +118,7 @@ function setup_nginx() {
     chmod a+rx -R /home/si/run
     firewall-cmd --zone=inner --add-service=http --permanent
     firewall-cmd --reload
-    cp -f ./nginx/nginx.conf /etc/nginx/
+    cp -f ../nginx/nginx.conf /etc/nginx/nginx.conf
     systemctl restart nginx
 }
 
