@@ -50,7 +50,7 @@
 
 # Configs
     https://www.tecmint.com/security-and-hardening-centos-7-guide/
-    /dev/sda5 	/data        ext4    defaults,nosuid,nodev,noexec 1 2
+    /dev/sdb1 	/safe-import    ext4    defaults,nosuid,nodev,noexec 0 0
     /dev/sda6  	/tmp         ext4    defaults,nosuid,nodev,noexec 0 0
 
 https://www.howtoforge.com/samba-server-installation-and-configuration-on-centos-7

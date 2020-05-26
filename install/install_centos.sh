@@ -116,6 +116,8 @@ function setup_nginx() {
     chmod a+rx -R /home/si/run
     firewall-cmd --zone=inner --add-service=http --permanent
     firewall-cmd --reload
+    cp -f ./nginx/nginx.conf /etc/nginx/
+    systemctl restart nginx
 }
 
 function final_setup() {
