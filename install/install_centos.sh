@@ -28,13 +28,12 @@ chmod +x ./bash-logger.sh
 chmod +x ./install_si_centos.sh
 source ./bash-logger.sh
 
-function check_install {
-    result = `yum list --installed | grep $1`
-    return result
+function setup_users() {
+    adduser si
 }
 
 function setup_filesystem() {
-    INFO setting up file system structures and permissions
+    INFO "Setting up file system structures and permissions"
     mkdir -p /safe-import/data/outer
     mkdir -p /safe-import/data/inner
     mkdir -p /safe-import/data/quarantine
@@ -42,14 +41,15 @@ function setup_filesystem() {
 }
 
 function install_basic() {
-    INFO Installing basic packages
+    INFO "Installing basic packages"
     yum update
     yum -y install epel-release
     yum install -y git bubblewrap nodejs python3
     yum groupinstall -y "Development Tools"
 }
 
-function install_clamav() {    
+function install_clamav() {
+    INFO "Installing ClamAV"
     yum -y install clamav-data clamav-update clamav
 
     sestatus
@@ -76,12 +76,23 @@ WantedBy=multi-user.target
 EOD
 }
 
-function setup_users() {
-    adduser si
+function install_gloang() {
+    INFO "Installing Go"
+    $pwd=`pwd`
+    mkdir -p ~/download
+    cd ~/download
+    wget "https://dl.google.com/go/go1.14.3.linux-amd64.tar.gz"
+    tar -xzf go1.14.3.linux-amd64.tar.gz
+    mv go /usr/local
+    export GOROOT=/usr/local/go
+    export PATH=$GOPATH/bin:$GOROOT/bin:$PATH
+    echo "export GOROOT=/usr/local/go" >> /etc/profile
+    echo "export PATH=$GOPATH/bin:$GOROOT/bin:$PATH" >> /etc/profile
+    cd $pwd
 }
 
 function setup_firewall() {
-    INFO Setting up firewall zones and basic rules
+    INFO "Setting up firewall zones and basic rules"
     firewall-cmd --new-zone=outer --permanent
     firewall-cmd --new-zone=inner --permanent
     #firewall-cmd --zone=outer --change-interface=eth1
@@ -90,13 +101,14 @@ function setup_firewall() {
 }
 
 function install_safe_import() {
+    INFO "Invoking user specific tasks"
     cp -f *.sh ~si/
     chown si.si ~si/*.sh
     sudo -iu si sh ./install_si_centos.sh
 }
 
 function setup_nginx() {
-    INFO Setting up NGINX
+    INFO "Setting up NGINX"
     setsebool -P httpd_can_network_connect on
     chcon -Rt httpd_sys_content_t /home/si/run/si-webui
     chmod a+rx /home
@@ -107,7 +119,7 @@ function setup_nginx() {
 }
 
 function final_setup() {
-    INFO Finalizing setup
+    INFO "Finalizing setup"
     # Allow safe-import uSvcs to bind DNS ports
     setcap 'cap_net_bind_service=+ep' /home/si/run/bin/server
 }
@@ -116,6 +128,7 @@ setup_users
 setup_filesystem
 install_basic
 install_clamav
+install_golang
 setup_firewall
 install_safe_import
 setup_nginx
