@@ -24,7 +24,9 @@ if [ "$EUID" -ne 0 ]
   exit
 fi
 
-source bash-logger.sh
+chmod +x ./bash-logger.sh
+chmod +x ./install_si_centos.sh
+source ./bash-logger.sh
 
 function check_install {
     result = `yum list --installed | grep $1`
@@ -81,18 +83,12 @@ function setup_users() {
     adduser si
 }
 
-function install_nats() {
-su -i si <<EOSU
-wget https://github.com/nats-io/nats-server/releases/download/v2.1.7/nats-server-v2.1.7-linux-amd64.zip
-unzip nats-server-v2.1.7-linux-amd64.zip
-mv nats-server-v2.1.7-linux-amd64 nats-server
-rm nats-server-v2.1.7-linux-amd64.zip
-echo "NATS installed"
-EOSU
-}
-
 function setup_firewall() {
     INFO Setting up firewall zones and basic rules
+    firewall-cmd --new-zone=outer
+    firewall-cmd --new-zone=inner
+    #firewall-cmd --zone=outer --change-interface=eth1
+    firewall-cmd --zone=outer --change-interface=eth0
 }
 
 function install_safe_import() {
@@ -122,6 +118,7 @@ setup_users
 setup_filesystem
 install_basic
 install_clamav
+setup_firewall
 install_safe_import
 setup_nginx
 final_setup
