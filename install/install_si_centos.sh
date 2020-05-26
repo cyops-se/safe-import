@@ -32,13 +32,13 @@ function download_safe_import() {
 
     export GIT_TERMINAL_PROMPT=1
 
-    INFO Downloading and installing NATS.o server
+    INFO "Downloading and installing NATS.o server"
     cd ~/download
     wget https://github.com/nats-io/nats-server/releases/download/v2.1.7/nats-server-v2.1.7-linux-amd64.zip
     unzip nats-server-v2.1.7-linux-amd64.zip
     mv nats-server-v2.1.7-linux-amd64/nats-server ~/run/bin
 
-    INFO Downloading and installing safe-import backend
+    INFO "Downloading and installing safe-import backend"
     cd ~/download
     #wget https://github.com/cyops-se/si-api/archive/master.zip -o si-api.zip
     #unzip si-api.zip
@@ -48,7 +48,7 @@ function download_safe_import() {
     cd ~/run/si-api
     npm i
     
-    INFO Downloading and installing safe-import web user interface
+    INFO "Downloading and installing safe-import web user interface"
     cd ~/download
     #wget https://github.com/cyops-se/si-webui/archive/master.zip -o si-webui.zip
     #unzip si-webui.zip 'si-webui-master/dist/*'
@@ -57,7 +57,7 @@ function download_safe_import() {
     mv si-webui/dist ~/run/si-webui
     rm -rf si-webui-master
 
-    INFO Downloading and installing safe-import micro services
+    INFO "Downloading and installing safe-import micro services"
     cd ~/run
     mkdir go
     export GOPATH=/home/si/run/go
@@ -65,13 +65,13 @@ function download_safe_import() {
 }
 
 function check_safe_import() {
-    INFO Checking safe-import sources and dependencies for malwares
+    INFO "Checking safe-import sources and dependencies for malware"
     cd ~/run
     clamscan -ir
 }
 
 function build_safe_import() {
-    INFO Building safe-import micro services
+    INFO "Building safe-import micro services"
     cd ~/run/go/src/github.com/cyops-se/si-usvc/server
     go build
     mv server ~/run/bin
