@@ -76,7 +76,7 @@ WantedBy=multi-user.target
 EOD
 }
 
-function install_gloang() {
+function install_golang() {
     INFO "Installing Go"
     $pwd=`pwd`
     mkdir -p ~/download
