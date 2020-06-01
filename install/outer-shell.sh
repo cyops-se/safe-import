@@ -19,17 +19,16 @@ set -euo pipefail
       --ro-bind /var/lib/clamav /var/lib/clamav \
       --symlink usr/lib /lib \
       --symlink usr/lib64 /lib64 \
-      --symlink usr/bin /bin \
-      --symlink usr/sbin /sbin \
       --bind /safe-import/data/outer /sandbox \
-      --bind /home/si/run/bin /sandbox/bin \
+      --ro-bind /home/si/run/bin /sandbox/bin \
+      --symlink usr/bin /bin \
       --chdir /sandbox \
       --unshare-all \
       --share-net \
       --die-with-parent \
       --dir /run/user/$(id -u) \
       --setenv XDG_RUNTIME_DIR "/run/user/`id -u`" \
-      --setenv PS1 "bwrap-demo$ " \
+      --setenv PS1 "outer-shell$ " \
       --file 11 /etc/passwd \
       --file 12 /etc/group \
       --uid 1001 \

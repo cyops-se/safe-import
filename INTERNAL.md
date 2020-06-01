@@ -53,7 +53,13 @@
     /dev/sdb1 	/safe-import    ext4    defaults,nosuid,nodev,noexec 0 0
     /dev/sda6  	/tmp         ext4    defaults,nosuid,nodev,noexec 0 0
 
+# SMB
 https://www.howtoforge.com/samba-server-installation-and-configuration-on-centos-7
+
+# WSUS
+WSUSUtil.exe export export.xml.gz export.log
+WSUSUtil.exe import export.xml.gz import.log
+
 
 
 # safe-import software
