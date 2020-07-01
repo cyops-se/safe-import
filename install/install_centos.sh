@@ -46,19 +46,20 @@ function install_basic() {
     INFO "Installing basic packages"
     yum update
     yum -y install epel-release
-    yum install -y git bubblewrap nodejs python3 nginx
+    yum install -y bubblewrap nodejs python3 nginx samba
     yum groupinstall -y "Development Tools"
 }
 
 function install_clamav() {
     INFO "Installing ClamAV"
-    yum -y install clamav-data clamav-update clamav
+    yum -y install clamav-data clamav-update clamav clamav-server-systemd
 
     sestatus
     setsebool -P antivirus_can_scan_system 1
     setsebool -P clamd_use_jit 1
     sed -i -e "s/^Example/#Example/" /etc/clamd.d/scan.conf
     sed -i -e "s/#LocalSocket /LocalSocket /" /etc/clamd.d/scan.conf
+    sed -i -e "s/#LocalGroup /LocalGroup /" /etc/clamd.d/scan.conf
     sed -i -e "s/^Example/#Example/" /etc/freshclam.conf
     freshclam
 
