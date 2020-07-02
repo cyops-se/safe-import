@@ -1,7 +1,9 @@
 # safe-import
 https://github.com/cyops-se/safe-import
 
-__IMPORTANT! The safe-import project, including all sibling repositories are, is in very early development and highly unstable. NO NOT USE ... yet :)__
+__IMPORTANT! The safe-import project, including all sibling repositories are, is in very early development and highly unstable. DO NOT USE ... yet :)__
+
+Installation instructions can be found [here](#installation)
 
 ## Introduction
 Sensitive systems, like Industrial Automation and Control Systems (IACS or ICS), must be protected from unauthorized access. This usually means isolation from other networks including the Internet.
@@ -21,10 +23,17 @@ Without a discursion on the assurance level or lack thereof regarding open sourc
 * It does not entail additional license costs
 
 ### Ease of use
-The ambition is to provide a scripted install from a minimal, clean Linux server. The script will download and vet necessary components as far as possible in an automated environment. Once the installation completes, it is finalized and taken into operation from an (hopefully) intuitive web user interface.
+The ambition is to provide a scripted install from a minimal, clean Linux server. The script will download and vet necessary components as far as possible in an automated environment. Once the installation completes, it is finalized and taken into operation from an (hopefully) intuitive web user interface. It has an auto-discovery feature detecting inner DNS and HTTPS requests.
 
 #### Trust
 A well-established and trusted Linux distribution is recommended, preferably CentOS. The selected Linux distribution becomes the root of trust, and standard repositories for the distribution are not vetted beyond what is already built-in the package managers. Additional packages and repositories are downloaded and vetted before installed or built.
+
+## Concepts
+### Safe import of unknown information
+Acting as a termination proxy, there is no direct communicaiton between inner and outer networks. Data is pulled from external sources and all ports are closed to the outer networks.
+
+### Outer and Inner
+The basic idea is to let this solution run in a separate host that sits on the border between sensitive and potentially hostile networks. Internal filters are enabled, but an external firewall should be used to put in a DMZ with well defined communication paths.
 
 # Architecture
 ## Design considerations
@@ -41,3 +50,13 @@ Additional Linux packages
 * bubblewrap
 * wget
 * samba
+
+# Installation
+
+## CentOS
+```bash
+git clone https://github.com/cyops-se/safe-import
+cd safe-import/install
+sh install_centos.sh
+```
+
