@@ -8,7 +8,7 @@ Installation instructions can be found [here](#installation)
 ## Introduction
 Sensitive systems, like Industrial Automation and Control Systems (IACS or ICS), must be protected from unauthorized access. This usually means isolation from other networks including the Internet.
 
-As a paradox, it is important to move data from trusted but potentially insecure external sources.
+As a paradox, it is important to move data from trusted but potentially insecure external sources over the Internet.
 
 The intent of this project is to provide mechanisms to import information to a sensitive system while mitigating the risk malware is introduced to the sensitive system, hence the name: _safe-import_.
 
@@ -25,7 +25,7 @@ Without a discursion on the assurance level or lack thereof regarding open sourc
 ### Ease of use
 The ambition is to provide a scripted install from a minimal, clean Linux server. The script will download and vet necessary components as far as possible in an automated environment. Once the installation completes, it is finalized and taken into operation from an (hopefully) intuitive web user interface. It has an auto-discovery feature detecting inner DNS and HTTPS requests.
 
-#### Trust
+### Trust
 A well-established and trusted Linux distribution is recommended, preferably CentOS. The selected Linux distribution becomes the root of trust, and standard repositories for the distribution are not vetted beyond what is already built-in the package managers. Additional packages and repositories are downloaded and vetted before installed or built.
 
 ## Concepts

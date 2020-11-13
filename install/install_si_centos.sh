@@ -61,7 +61,7 @@ function download_safe_import() {
     cd ~/run
     mkdir go
     export GOPATH=/home/si/run/go
-    go get "github.com/cyops-se/si-usvc/server"
+    go get "github.com/cyops-se/safe-import/si-usvc/server"
 }
 
 function check_safe_import() {

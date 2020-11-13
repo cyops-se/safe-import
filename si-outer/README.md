@@ -1,0 +1,2 @@
+# si-outer - Part of the safe-import solution
+This application it responsible for the actual downloading of potentially hostile content and should run in an isolated environment such as bubblewrap (bwrap).
