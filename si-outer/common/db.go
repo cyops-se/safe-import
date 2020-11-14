@@ -23,7 +23,7 @@ func ConnectDatabase() {
 
 	fmt.Println("Database connected!")
 
-	database.AutoMigrate(&types.Repository{})
+	database.AutoMigrate(&types.Job{})
 
 	DB = database
 }

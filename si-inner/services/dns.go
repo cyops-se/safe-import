@@ -88,15 +88,15 @@ func (svc *InnerDnsService) parseQuery(m *dns.Msg, w dns.ResponseWriter) {
 
 				if match := svc.matchQuery(q.Name, "white"); match != nil {
 					if match.Allowed {
-						fmt.Println("WHITE ALLOWED!", data.Query, data.FromIP, match.Query, match.MatchQuery)
+						fmt.Println("WHITE DNS ALLOWED!", data.Query, data.FromIP, match.Query, match.MatchQuery)
 						m.Answer = append(m.Answer, rr)
 					} else {
-						fmt.Println("WHITE NOT ALLOWED!", data.Query, data.FromIP, match.Query, match.MatchQuery)
+						fmt.Println("WHITE DNS NOT ALLOWED!", data.Query, data.FromIP, match.Query, match.MatchQuery)
 						m.Answer = append(m.Answer, empty)
 						m.Rcode = dns.RcodeNameError
 					}
 				} else if match := svc.matchQuery(q.Name, "black"); match != nil {
-					fmt.Println("BLACK ALERT! Bad DNS query detected", q.Name)
+					fmt.Println("BLACK DNS ALERT! Bad DNS query detected", q.Name)
 					m.Answer = append(m.Answer, empty)
 					m.Rcode = dns.RcodeNameError
 				} else if match := svc.checkGrey(q.Name); match == nil {

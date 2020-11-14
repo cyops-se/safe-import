@@ -6,15 +6,14 @@ type ByNameRequest struct {
 }
 
 type ByIdRequest struct {
-	ID int `json:"id"`
+	ID uint `json:"id"`
 }
 
-type WaitRequest struct {
+type HttpDownloadRequest struct {
 	URL string `json:"url"`
 }
 
-type WaitResponse struct {
-	Success  bool   `json:"success"`
-	Error    error  `json:"error"`
+type HttpDownloadResponse struct {
+	URL      string `json:"url"`
 	Filename string `json:"filename"`
 }

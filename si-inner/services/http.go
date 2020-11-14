@@ -4,12 +4,15 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"regexp"
 	"strings"
 	"time"
 
+	gtypes "github.com/cyops-se/safe-import/si-gatekeeper/types"
 	"github.com/cyops-se/safe-import/si-inner/common"
 	"github.com/cyops-se/safe-import/si-inner/types"
 	"github.com/cyops-se/safe-import/usvc"
@@ -29,7 +32,7 @@ func (svc *InnerHttpService) Initialize(broker *usvc.UsvcBroker) {
 	svc.RegisterMethod("update", svc.update)
 	svc.RegisterMethod("prune", svc.prune)
 
-	proxySvc = usvc.CreateStub(broker, "job-proxy", "si-gatekeeper", 1)
+	proxySvc = usvc.CreateStub(broker, "proxy", "si-gatekeeper", 1)
 
 	// We don't use settings right now
 	if err := svc.LoadSettings(); err != nil {
@@ -100,18 +103,33 @@ func (svc *InnerHttpService) processHttp(w http.ResponseWriter, r *http.Request,
 	// See if the URL matches one in the lists (white, black, grey)
 	if match := svc.matchURL(u, "white"); match != nil {
 		if match.Allowed {
-			fmt.Println("WHITE ALLOWED!", msg.URL, msg.FromIP)
-			request := &types.ApproveRequest{}
+			fmt.Println("WHITE URL ALLOWED!", msg.URL, msg.FromIP)
+			request := &gtypes.HttpDownloadRequest{msg.URL}
 			if response, err := proxySvc.RequestMessage("httpget", request); err == nil {
-				fmt.Println("RESPONSE:", response)
+				fmt.Println("RESPONSE request", response)
+				if len(response.Payload) <= 0 {
+					svc.LogError("Failed to download file via proxy", fmt.Errorf("Response payload from proxy download request is empty"))
+				}
+
+				var dr gtypes.HttpDownloadResponse
+				if err := json.Unmarshal([]byte(response.Payload), &dr); err != nil {
+					svc.LogGeneric("error", "Marshalling proxy response to JSON failed: %#v", err)
+				}
+				fmt.Println("RESPONSE payload", dr)
+				if file, err := os.Open(dr.Filename); err == nil {
+					defer file.Close()
+					io.Copy(w, file)
+				} else {
+					svc.LogError("Failed to open file from si-outer", err)
+				}
 			} else {
 				svc.LogError("Failed to request job from proxy", err)
 			}
 		} else {
-			// fmt.Println("WHITE NOT ALLOWED!", msg.URL, msg.FromIP)
+			fmt.Println("WHITE URL NOT ALLOWED!", msg.URL, msg.FromIP)
 		}
 	} else if match := svc.matchURL(u, "black"); match != nil {
-		fmt.Println("BLACK ALERT!", msg.URL, msg.FromIP)
+		fmt.Println("BLACK URL ALERT!", msg.URL, msg.FromIP)
 	} else if match := svc.checkGrey(u); match == nil {
 		msg.Class = "grey"
 		msg.Count = 1
