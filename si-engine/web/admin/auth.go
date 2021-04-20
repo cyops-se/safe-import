@@ -1,7 +1,6 @@
 package admin
 
 import (
-	"fmt"
 	"time"
 
 	jwt "github.com/appleboy/gin-jwt/v2"
@@ -23,7 +22,7 @@ var JWT = &jwt.GinJWTMiddleware{
 	MaxRefresh:  time.Hour,
 	IdentityKey: identityKey,
 	PayloadFunc: func(data interface{}) jwt.MapClaims {
-		fmt.Println("Payload:", data)
+		// fmt.Println("Payload:", data)
 		if v, ok := data.(*db.User); ok {
 			return jwt.MapClaims{
 				identityKey: v.UserName,

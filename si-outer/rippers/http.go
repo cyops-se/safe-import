@@ -22,45 +22,48 @@ type HttpContext struct {
 	Url       *url.URL
 }
 
-func CreateHttpContext(job *types.Job) *HttpContext {
+func CreateHttpContext(job *types.Job, repo *types.Repository) *HttpContext {
 	context := &HttpContext{}
 	context.Job = job
 	context.processed = make(map[string]bool, 1)
-	context.Url, _ = url.Parse(job.Repository.URL)
+	context.Url, _ = url.Parse(repo.URL)
+	context.Repository = repo
 	return context
 }
 
 func (context *HttpContext) DownloadDirHttp() error {
 	job := context.Job
 
-	log.Printf("Downloading request URL %s\n", job.Repository.URL)
-	job.LocalPath = path.Join(job.Repository.OuterPath, context.Url.Path)
-	if strings.HasSuffix(job.LocalPath, "/") {
-		job.LocalPath = path.Join(job.LocalPath, "index.html")
+	currentpath := context.Repository.OuterPath
+	log.Printf("Downloading request URL %s\n", context.Repository.URL)
+	if strings.HasSuffix(context.Repository.OuterPath, "/") {
+		currentpath = path.Join(context.Repository.OuterPath, "index.html")
 	}
 
-	fmt.Println("OUTERPATH:", job.Repository.OuterPath)
-	fmt.Println("LOCALPATH:", job.LocalPath)
+	// fmt.Println("OUTER PATH:", context.Repository.OuterPath)
+	// fmt.Println("CURRENT PATH:", currentpath)
 
-	context.MkdirIfNotExists(job.LocalPath)
+	context.MkdirIfNotExists(currentpath)
 
 	context.RemoteTree = &Folder{Name: "/"}
-	err := context.buildTreeFromURL(job.Repository.URL, context.RemoteTree)
-	if job.ReportError(err, "DownloadDirHttp:context.buildTreeFromURL()") {
+	err := context.buildTreeFromURL(context.Repository.URL, context.RemoteTree)
+	if err != nil {
+		// fmt.Println("DownloadDirHttp buildTreeFromURL ERROR:", err)
 		return err
 	}
 
 	err = context.CheckDestinationPath(context.RemoteTree)
-	if job.ReportError(err, "DownloadDirHttp:context.CheckDestinationPath()") {
+	if err != nil {
+		// fmt.Println("DownloadDirHttp CheckDestinationPath ERROR:", err)
 		return err
 	}
 
-	fmt.Println("Downloading missing or modified files: ", context.Files)
+	// fmt.Println("Downloading missing or modified files: ", context.Files)
 	for f := context.Files.Front(); f != nil; f = f.Next() {
 		select {
 		case job.Command = <-job.Commands:
 			err := fmt.Errorf("Job aborted by command: %d", job.Command)
-			job.ReportError(err, "DownloadDirHttp:STOP COMMAND")
+			// fmt.Println("DownloadDirHttp aborted ERROR:", err)
 			return err
 		default:
 			file := f.Value.(*MissingFile)
@@ -76,26 +79,27 @@ func (context *HttpContext) DownloadDirHttp() error {
 }
 
 func (context *HttpContext) DownloadSingleFileHttp() error {
-	job := context.Job
 	prefix := "/safe-import/outer"
 
-	log.Printf("Downloading request URL %s\n", job.Repository.URL)
-	if len(strings.TrimSpace(job.LocalPath)) == 0 {
-		job.LocalPath = fmt.Sprintf("%d", job.Repository.ID)
+	outerpath := path.Join("/safe-import/outer/", context.Repository.OuterPath)
+
+	log.Printf("Downloading request URL %s\n", context.Repository.URL)
+	if len(strings.TrimSpace(outerpath)) == 0 {
+		outerpath = fmt.Sprintf("%d", context.Repository.ID)
 	}
 
-	job.LocalPath = path.Join(prefix, job.LocalPath)
+	outerpath = path.Join(prefix, outerpath)
 
-	context.MkdirIfNotExists(job.LocalPath)
+	context.MkdirIfNotExists(outerpath)
 
-	fmt.Println("Downloading requested file: ", job.Repository.URL)
+	// fmt.Println("Downloading requested file: ", context.Repository.URL)
 
 	filename := context.Url.Path
 	if filename == "" || filename == "/" {
 		filename = "index.html"
 	}
 
-	context.downloadSingleFileHttp(job.Repository.URL, filename)
+	context.downloadSingleFileHttp(context.Repository.URL, filename)
 
 	return nil
 }
@@ -110,16 +114,17 @@ func (context *HttpContext) buildTreeFromURL(urlstr string, folder *Folder) erro
 	select {
 	case job.Command = <-job.Commands:
 		err := fmt.Errorf("Job aborted by command: %d", job.Command)
-		job.ReportError(err, "buildTreeFromURL:STOP COMMAND")
+		// fmt.Println("buildTreeFromURL aborted ERROR:", err)
 		return err
 
 	default:
 		doc, err := goquery.NewDocument(urlstr)
-		if job.ReportError(err, "buildTreeFromURL:goquery.NewDocument()") {
+		if err != nil {
+			// fmt.Println("buildTreeFromURL goquery.NewDocument ERROR:", err)
 			return err
 		}
 
-		// fmt.Println("Ripping document:", urlstr)
+		// // fmt.Println("Ripping document:", urlstr)
 		doc.Find("a").Each(func(i int, s *goquery.Selection) {
 			href, ok := s.Attr("href")
 			u, err := url.Parse(href)
@@ -139,8 +144,9 @@ func (context *HttpContext) buildTreeFromURL(urlstr string, folder *Folder) erro
 						child := &Folder{Name: href}
 						folder.Folders[child.Name] = child
 						context.processed[href] = true
-						if err := context.buildTreeFromURL(job.Repository.URL+href, child); err != nil {
+						if err := context.buildTreeFromURL(context.Repository.URL+href, child); err != nil {
 							job.Progress.Error = err
+							job.Progress.ErrorMessage = err.Error()
 							return
 						}
 					}
@@ -151,9 +157,10 @@ func (context *HttpContext) buildTreeFromURL(urlstr string, folder *Folder) erro
 						}
 
 						context.processed[href] = true
-						url := fmt.Sprintf("%s%s%s", context.Job.Repository.URL, folder.Name, href)
+						url := fmt.Sprintf("%s%s%s", context.Repository.URL, folder.Name, href)
 						if err := context.buildFileFromURL(url, folder); err != nil {
 							job.Progress.Error = err
+							job.Progress.ErrorMessage = err.Error()
 							return
 						}
 					}
@@ -170,17 +177,17 @@ func (context *HttpContext) buildTreeFromURL(urlstr string, folder *Folder) erro
 }
 
 func (context *HttpContext) buildFileFromURL(url string, folder *Folder) error {
-	job := context.Job
-
 	headResp, err := http.Head(url)
-	if job.ReportError(err, "downloadFileHttp:http.Head()") {
+	if err != nil {
+		// fmt.Println("buildTreeFromURL http.Head ERROR:", err)
 		return err
 	}
+
 	defer headResp.Body.Close()
 
 	if headResp.StatusCode != 200 {
 		err := fmt.Errorf("Failed to retrieve HEAD for url: '%s', code: %d", url, headResp.StatusCode)
-		job.ReportError(err, "downloadFileHttp:http.Head()")
+		// fmt.Println("buildFileFromURL http.Head status code ERROR:", err)
 		return err
 	}
 
@@ -197,16 +204,19 @@ func (context *HttpContext) buildFileFromURL(url string, folder *Folder) error {
 
 func (context *HttpContext) downloadFileHttp(f *MissingFile) error {
 	job := context.Job
-	fullURL := job.Repository.URL + f.Fullname
+	fullURL := context.Repository.URL + f.Fullname
 
-	localfile := path.Join(job.LocalPath, f.Fullname)
+	outerpath := path.Join("/safe-import/outer/", context.Repository.OuterPath)
+	localfile := path.Join(outerpath, f.Fullname)
 	context.MkdirIfNotExists(path.Dir(localfile))
 
-	fmt.Println("Storing file at:", localfile)
+	// fmt.Println("Storing file at:", localfile)
 	out, err := os.Create(localfile)
-	if job.ReportError(err, "downloadFileHttp:os.Create()") {
+	if err != nil {
+		// fmt.Println("downloadFileHttp os.Create ERROR:", err)
 		return err
 	}
+
 	defer out.Close()
 
 	c := &http.Client{Timeout: -1}
@@ -219,8 +229,9 @@ func (context *HttpContext) downloadFileHttp(f *MissingFile) error {
 	go context.PrintDownloadPercent(done)
 
 	resp, err := c.Get(fullURL)
-	if job.ReportError(err, "downloadFileHttp:c.Get()") {
+	if err != nil {
 		done <- 1
+		// fmt.Println("downloadFileHttp c.Get ERROR:", err)
 		return err
 	}
 
@@ -228,23 +239,25 @@ func (context *HttpContext) downloadFileHttp(f *MissingFile) error {
 
 	n, err := io.Copy(out, resp.Body)
 	out.Close()
-	job.ReportError(err, "downloadFileHttp:io.Copy()")
+	// fmt.Println("downloadFileHttp io.Copy ERROR:", err)
 
 	done <- n
 
-	// fmt.Println("downloadFileHttp() DONE!")
+	// // fmt.Println("downloadFileHttp() DONE!")
 	return err
 }
 
 func (context *HttpContext) downloadSingleFileHttp(url string, filename string) error {
 	job := context.Job
 
-	localfile := path.Join(job.LocalPath, filename)
+	outerpath := path.Join("/safe-import/outer/", context.Repository.OuterPath)
+	localfile := path.Join(outerpath, filename)
 	context.MkdirIfNotExists(path.Dir(localfile))
 
-	fmt.Println("Storing file at:", localfile)
+	// fmt.Println("Storing file at:", localfile)
 	out, err := os.Create(localfile)
-	if job.ReportError(err, "downloadFileHttp:os.Create()") {
+	if err != nil {
+		// fmt.Println("downloadSingleFileHttp os.Create ERROR:", err)
 		return err
 	}
 	defer out.Close()
@@ -258,9 +271,10 @@ func (context *HttpContext) downloadSingleFileHttp(url string, filename string) 
 	job.Progress.Current.Total = 0
 	go context.PrintDownloadPercent(done)
 
-	resp, err := c.Get(job.Repository.URL)
-	if job.ReportError(err, "downloadFileHttp:c.Get()") {
+	resp, err := c.Get(context.Repository.URL)
+	if err != nil {
 		done <- 1
+		// fmt.Println("downloadSingleFileHttp c.Get ERROR:", err)
 		return err
 	}
 
@@ -268,10 +282,10 @@ func (context *HttpContext) downloadSingleFileHttp(url string, filename string) 
 
 	n, err := io.Copy(out, resp.Body)
 	out.Close()
-	job.ReportError(err, "downloadFileHttp:io.Copy()")
+	// fmt.Println("downloadSingleFileHttp io.Copy ERROR:", err)
 
 	done <- n
 
-	// fmt.Println("downloadFileHttp() DONE!")
+	// // fmt.Println("downloadFileHttp() DONE!")
 	return err
 }

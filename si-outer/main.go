@@ -22,6 +22,9 @@ func main() {
 	jobsvc := &services.JobsService{}
 	jobsvc.Initialize(broker)
 
+	// reposvc := &services.RepoService{}
+	// reposvc.Initialize(broker)
+
 	c := make(chan os.Signal)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	<-c

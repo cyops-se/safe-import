@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"encoding/json"
 	"flag"
-	"fmt"
 	"os"
 
 	"github.com/cyops-se/safe-import/usvc"
@@ -21,14 +20,14 @@ func main() {
 	svc := usvc.CreateStub(broker, "chat", "examples", 1)
 
 	if err := svc.SubscribeData("msg", msgHandler); err != nil {
-		fmt.Println("Failed to set up subscription:", err)
+		// fmt.Println("Failed to set up subscription:", err)
 	}
 
 	scanner := bufio.NewScanner(os.Stdin)
 	for scanner.Scan() {
 		payload := types.ChatMessage{From: *nickname, Message: scanner.Text()}
 		if _, err := svc.RequestMessage("msg", payload); err != nil {
-			fmt.Println("ERROR:", err)
+			// fmt.Println("ERROR:", err)
 		}
 	}
 }
@@ -36,5 +35,5 @@ func main() {
 func msgHandler(msg *nats.Msg) {
 	payload := &types.ChatMessage{}
 	json.Unmarshal(msg.Data, &payload)
-	fmt.Printf("%s says: %s\n", payload.From, payload.Message)
+	// fmt.Printf("%s says: %s\n", payload.From, payload.Message)
 }

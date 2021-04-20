@@ -97,7 +97,7 @@ func (svc *Usvc) InitializeService(broker *UsvcBroker, version int, component st
 }
 
 func (svc *Usvc) RegisterMethod(name string, callback func(payload string) (interface{}, error)) {
-	// fmt.Printf("Method %s registered for service %s\n", name, svc.Fullname())
+	// // fmt.Printf("Method %s registered for service %s\n", name, svc.Fullname())
 	svc.methods[name] = callback
 }
 
@@ -134,6 +134,10 @@ func (svc *Usvc) LogError(msg string, err error) {
 
 func (svc *Usvc) LogGeneric(category string, format string, args ...interface{}) {
 	svc.broker.LogGeneric(svc.Fullname(), category, format, args...)
+}
+
+func (svc *Usvc) LogInfection(title string, format string, args ...interface{}) {
+	svc.broker.LogInfection(svc.Fullname(), title, format, args...)
 }
 
 func (svc *Usvc) Publish(subject string, msg interface{}) error {
@@ -354,7 +358,7 @@ func (svc *Usvc) jobengine() {
 		}
 	}
 	svc.state = types.ServiceState_ABORTED
-	fmt.Printf("EXIT jobengine %s...\n", svc.Fullname())
+	// fmt.Printf("EXIT jobengine %s...\n", svc.Fullname())
 }
 
 func (svc *Usvc) pause() {
@@ -372,11 +376,11 @@ func (svc *Usvc) stop() {
 }
 
 func (svc *Usvc) defaultexecute() {
-	// fmt.Printf("%s default executor activated\n", svc.Fullname())
+	// // fmt.Printf("%s default executor activated\n", svc.Fullname())
 }
 
 func (svc *Usvc) defaultapplysettings() {
-	// fmt.Printf("%s default executor activated\n", svc.Fullname())
+	// // fmt.Printf("%s default executor activated\n", svc.Fullname())
 }
 
 func (svc *Usvc) execute() {

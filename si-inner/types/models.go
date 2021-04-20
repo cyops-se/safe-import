@@ -40,8 +40,8 @@ type DnsRequest struct {
 type Repository struct {
 	gorm.Model
 	FailureMsg  string    `json:"failuremsg"`
-	LastSuccess time.Time `json:"time"`
-	LastFailure time.Time `json:"time"`
+	LastSuccess time.Time `json:"lastsuccess"`
+	LastFailure time.Time `json:"lastfailure"`
 	Type        string    `json:"type"`
 	URL         string    `json:"url"`
 	MatchURL    string    `json:"matchurl"`

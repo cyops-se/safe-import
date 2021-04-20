@@ -41,7 +41,7 @@ func Run(command string, varargs ...string) (error, int, []byte) {
 			}
 		}
 
-		fmt.Println("CLAMSCAN:", cmd.filename, args)
+		// fmt.Println("CLAMSCAN:", cmd.filename, args)
 		out, err := exec.Command(cmd.filename, args...).Output()
 		if err != nil {
 			return err, err.(*exec.ExitError).ExitCode(), out

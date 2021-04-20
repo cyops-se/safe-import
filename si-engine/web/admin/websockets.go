@@ -2,7 +2,6 @@ package admin
 
 import (
 	"container/list"
-	"fmt"
 	"net/http"
 
 	"github.com/gorilla/websocket"
@@ -27,7 +26,7 @@ func WShandler(w http.ResponseWriter, r *http.Request, connections *list.List) {
 	wsupgrader.CheckOrigin = func(r *http.Request) bool { return true }
 	conn, err := wsupgrader.Upgrade(w, r, nil)
 	if err != nil {
-		fmt.Println("Failed to set websocket upgrade: ", err)
+		// fmt.Println("Failed to set websocket upgrade: ", err)
 		return
 	}
 
@@ -41,7 +40,7 @@ func WShandler(w http.ResponseWriter, r *http.Request, connections *list.List) {
 			break
 		}
 
-		fmt.Println("RECEIVED MESSAGE: ", t, string(msg))
+		// fmt.Println("RECEIVED MESSAGE: ", t, string(msg))
 
 		for e := connections.Front(); e != nil; e = e.Next() {
 			conn := e.Value.(*websocket.Conn)

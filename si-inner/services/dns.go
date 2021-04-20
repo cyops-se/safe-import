@@ -61,42 +61,49 @@ func (svc *InnerDnsService) DNSServer() {
 }
 
 func (svc *InnerDnsService) parseQuery(m *dns.Msg, w dns.ResponseWriter) {
-	ip, err := externalIP()
+
+	remoteaddr, _ := w.RemoteAddr().(*net.UDPAddr)
+	remoteip := remoteaddr.IP
+
+	dnsip, err := externalIP(remoteip)
 	if err != nil {
-		fmt.Println(err)
+		svc.LogError("Failed to find external IP (to use as DNS response)", err)
+		return
 	}
+
+	svc.LogInfo(fmt.Sprintf("Using %s as IP address for DNS response", dnsip))
 
 	for _, q := range m.Question {
 		switch q.Qtype {
 		case dns.TypeA:
-			if ip != "" {
+			if dnsip != "" {
 				var rr, empty dns.RR
-				if rr, err = dns.NewRR(fmt.Sprintf("%s A %s", q.Name, ip)); err != nil {
-					fmt.Println("DNS CRITICAL: failed to create A RR, err:", err)
+				if rr, err = dns.NewRR(fmt.Sprintf("%s A %s", q.Name, dnsip)); err != nil {
+					// fmt.Println("DNS CRITICAL: failed to create A RR, err:", err)
 					return
 				}
 
 				if empty, err = dns.NewRR(fmt.Sprintf("%s IN A", q.Name)); err != nil {
-					fmt.Println("DNS CRITICAL: failed to create EMTPY A RR, err:", err)
+					// fmt.Println("DNS CRITICAL: failed to create EMPTY A RR, err:", err)
 					return
 				}
 
 				// Send the URI over nats if used
-				ip, _ := w.RemoteAddr().(*net.UDPAddr)
-				data := &types.DnsRequest{Time: time.Now().UTC(), FromIP: ip.IP.String(), Query: q.Name,
+				// ip, _ := w.RemoteAddr().(*net.UDPAddr)
+				data := &types.DnsRequest{Time: time.Now().UTC(), FromIP: remoteip.String(), Query: q.Name,
 					MatchQuery: regexp.QuoteMeta(q.Name), LastSeen: time.Now().UTC()}
 
 				if match := svc.matchQuery(q.Name, "white"); match != nil {
 					if match.Allowed {
-						fmt.Println("WHITE DNS ALLOWED!", data.Query, data.FromIP, match.Query, match.MatchQuery)
+						svc.LogGeneric("inner", "WHITE DNS ALLOWED: %s, from %s", data.Query, data.FromIP)
 						m.Answer = append(m.Answer, rr)
 					} else {
-						fmt.Println("WHITE DNS NOT ALLOWED!", data.Query, data.FromIP, match.Query, match.MatchQuery)
+						svc.LogGeneric("inner", "WHITE DNS BLOCKED: %s, from %s", data.Query, data.FromIP)
 						m.Answer = append(m.Answer, empty)
 						m.Rcode = dns.RcodeNameError
 					}
 				} else if match := svc.matchQuery(q.Name, "black"); match != nil {
-					fmt.Println("BLACK DNS ALERT! Bad DNS query detected", q.Name)
+					svc.LogGeneric("alert", "BLACK DNS ALERT: %s, from %s", data.Query, data.FromIP)
 					m.Answer = append(m.Answer, empty)
 					m.Rcode = dns.RcodeNameError
 				} else if match := svc.checkGrey(q.Name); match == nil {
@@ -158,18 +165,19 @@ func (svc *InnerDnsService) handleDnsRequest(w dns.ResponseWriter, r *dns.Msg) {
 }
 
 // Taken from "https://play.golang.org/p/BDt3qEQ_2H"
-func externalIP() (string, error) {
+func externalIP(remoteip net.IP) (string, error) {
 	ifaces, err := net.Interfaces()
 	if err != nil {
 		return "", err
 	}
 
 	for _, iface := range ifaces {
+		// // fmt.Println("Checking interface", iface)
 		if iface.Flags&net.FlagUp == 0 {
 			continue // interface down
 		}
 
-		if iface.Flags&net.FlagLoopback != 0 {
+		if (iface.Flags & net.FlagLoopback) != 0 {
 			continue // loopback interface
 		}
 
@@ -180,19 +188,24 @@ func externalIP() (string, error) {
 
 		for _, addr := range addrs {
 			var ip net.IP
+			// var mask net.IPMask
+
 			switch v := addr.(type) {
 			case *net.IPNet:
 				ip = v.IP
+				// mask = v.Mask
+				// // fmt.Println("NETWORK", ip, mask)
 			case *net.IPAddr:
 				ip = v.IP
+				// mask = v.IP.DefaultMask()
+				// // fmt.Println("IP", ip, mask)
 			}
-			if ip == nil || ip.IsLoopback() {
-				continue
-			}
+
 			ip = ip.To4()
-			if ip == nil {
-				continue // not an ipv4 address
+			if ip == nil || ip.IsLoopback() {
+				continue // not an ipv4 address or loopback
 			}
+
 			return ip.String(), nil
 		}
 	}

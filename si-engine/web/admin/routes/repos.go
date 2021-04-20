@@ -4,16 +4,17 @@ import (
 	"net/http"
 	"strconv"
 
-	db "github.com/cyops-se/safe-import/si-engine/web/admin/db"
 	innertypes "github.com/cyops-se/safe-import/si-inner/types"
 	"github.com/cyops-se/safe-import/usvc"
 	"github.com/gin-gonic/gin"
 )
 
 var repoSvc *usvc.UsvcStub
+var jobsSvc *usvc.UsvcStub
 
 func RegisterReposRoutes(auth *gin.RouterGroup, broker *usvc.UsvcBroker) {
 	auth.GET("/repo", GetAllRepo)
+	auth.GET("/repo/download/:id", GetDownloadRepo)
 	auth.GET("/repo/id/:id", GetRepoByID)
 	auth.GET("/repo/field/:name/:value", GetRepoByField)
 
@@ -25,7 +26,9 @@ func RegisterReposRoutes(auth *gin.RouterGroup, broker *usvc.UsvcBroker) {
 
 	auth.DELETE("/repo", DeleteAllRepos)
 	auth.DELETE("/repo/:id", DeleteRepo)
-	repoSvc = usvc.CreateStub(broker, "repos", "si-outer", 1)
+
+	repoSvc = usvc.CreateStub(broker, "repos", "si-inner", 1)
+	jobsSvc = usvc.CreateStub(broker, "jobs", "si-outer", 1)
 }
 
 func GetAllRepo(c *gin.Context) {
@@ -38,29 +41,32 @@ func GetAllRepo(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"items": r, "error": err})
 }
 
-func GetRepoByID(c *gin.Context) {
-	var item db.NetRepos
-	id := c.Params.ByName("id")
-	result := db.DB.First(&item, "id = ?", id)
-	if result.Error != nil {
-		c.JSON(http.StatusNoContent, gin.H{"error": result.Error})
+func GetDownloadRepo(c *gin.Context) {
+	id, _ := strconv.Atoi(c.Params.ByName("id"))
+	msg := &innertypes.ByIdRequest{ID: uint(id)}
+	r, err := jobsSvc.RequestMessage("requestrepodownload", msg)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"item": item})
+	c.JSON(http.StatusOK, gin.H{"data": r, "error": err})
+}
+
+func GetRepoByID(c *gin.Context) {
+	id, _ := strconv.Atoi(c.Params.ByName("id"))
+	msg := &innertypes.ByIdRequest{ID: uint(id)}
+	r, err := repoSvc.RequestMessage("byid", msg)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": r, "error": err})
 }
 
 func GetRepoByField(c *gin.Context) {
-	var items []db.NetRepos
-	f := c.Params.ByName("name")
-	v := c.Params.ByName("value")
-	result := db.DB.Where(map[string]interface{}{f: v}).Find(&items)
-	if result.Error != nil {
-		c.JSON(http.StatusNoContent, gin.H{"error": result.Error})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"items": items})
+	c.JSON(http.StatusNotImplemented, gin.H{"error": "Method not yet implemented"})
 }
 
 func NewRepo(c *gin.Context) {

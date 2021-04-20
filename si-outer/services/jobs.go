@@ -1,6 +1,8 @@
 package services
 
 import (
+	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -8,9 +10,11 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"path/filepath"
 	"runtime"
 	"strings"
 
+	"github.com/cyops-se/safe-import/si-outer/rippers"
 	"github.com/cyops-se/safe-import/si-outer/system"
 	"github.com/cyops-se/safe-import/si-outer/types"
 	"github.com/cyops-se/safe-import/usvc"
@@ -18,149 +22,183 @@ import (
 
 type JobsService struct {
 	usvc.Usvc
-	jobs map[int]*types.Job
+	jobs    map[int]*types.Job
+	repoSvc *usvc.UsvcStub
 }
 
 func (svc *JobsService) Initialize(broker *usvc.UsvcBroker) {
 	svc.InitializeService(broker, 1, "si-outer", "jobs", "Handles execution and reporting of background workers called jobs (not Steve)")
 	svc.RegisterMethod("allitems", svc.getAll)
-	svc.RegisterMethod("runjob", svc.runJob)
-	svc.RegisterMethod("stopjob", svc.stopJob)
+	svc.RegisterMethod("deletebyid", svc.deleteJob)
 	svc.RegisterMethod("requesturlwait", svc.requestUrlWait)
+	svc.RegisterMethod("requestrepodownload", svc.requestRepoDownload)
+	svc.repoSvc = usvc.CreateStub(broker, "repos", "si-inner", 1)
 
 	svc.jobs = make(map[int]*types.Job, 1)
 }
 
 func (svc *JobsService) getAll(payload string) (interface{}, error) {
-	return nil, fmt.Errorf("jobs.getall: not yet implemented")
+	var jobs []*types.Job
+	for _, j := range svc.jobs {
+		jobs = append(jobs, j)
+	}
+	// fmt.Println("ALL JOBS:", jobs)
+	return jobs, nil
 }
 
-func (svc *JobsService) runJob(payload string) (interface{}, error) {
-	// request := &types.ByIdRequest{} // repo id
-	// if err := json.Unmarshal([]byte(payload), &request); err != nil {
-	// 	svc.LogGeneric("error", "Marshalling request to JSON failed: %#v", err)
-	// 	return nil, err
-	// }
+func (svc *JobsService) deleteJob(payload string) (interface{}, error) {
+	request := &types.ByIdRequest{} // repo id
+	if err := json.Unmarshal([]byte(payload), &request); err != nil {
+		svc.LogGeneric("error", "Marshalling request from JSON failed: %#v", err)
+		return nil, err
+	}
 
-	// repo := &types.Repository{}
-	// if result := common.DB.First(&repo, request.ID); result.Error != nil {
-	// 	svc.LogGeneric("error", "Error while accessing the database: %#v", result.Error)
-	// 	return nil, result.Error
-	// }
+	delete(svc.jobs, request.ID)
 
-	// job := &types.Job{Repository: repo}
-	// job.Commands = make(chan int)
-	// job.Progress.ID = request.ID
-	// job.Callback = func(job *types.Job) {
-	// 	fmt.Printf("Publishing progress: %v\n", job.Progress)
-	// 	if job.Progress.Error == nil {
-	// 		if job.Command == 0 {
-	// 			svc.PublishData("event.jobs.progress", job.Progress)
-	// 		} else {
-	// 			svc.PublishData("event.jobs.stopping", job.Progress)
-	// 		}
-	// 	} else {
-	// 		svc.PublishData("event.jobs.failure", job.Progress)
-	// 	}
-	// }
+	var jobs []*types.Job
+	for _, j := range svc.jobs {
+		jobs = append(jobs, j)
+	}
+	// fmt.Println("ALL JOBS:", jobs)
+	return jobs, nil
+}
 
-	// // request.Progress = &types.JobProgress{Current: &types.Progress{}, Total: &types.Progress{}}
+func (svc *JobsService) requestRepoDownload(payload string) (interface{}, error) {
+	request := &types.ByIdRequest{} // repo id
+	if err := json.Unmarshal([]byte(payload), &request); err != nil {
+		svc.LogGeneric("error", "Marshalling request from JSON failed: %#v", err)
+		return nil, err
+	}
+
+	msg := &types.ByIdRequest{ID: request.ID}
+	response, err := svc.repoSvc.RequestMessage("byid", msg)
+	if err != nil {
+		svc.LogGeneric("error", "Request to  repository service failed: %#v", err)
+		return nil, err
+	}
+
+	repo := &types.Repository{}
+	if err := json.Unmarshal([]byte(response.Payload), &repo); err != nil {
+		svc.LogGeneric("error", "Marshalling repository from JSON failed: %#v", err)
+		return nil, err
+	}
+
+	job := &types.Job{}
+	job.Commands = make(chan int)
+	job.Progress.ID = request.ID
+	job.Callback = func(job *types.Job) {
+		// fmt.Printf("Publishing progress: %v\n", job.Progress)
+		if job.Progress.Error == nil {
+			if job.Command == 0 {
+				svc.PublishData("event.jobs.progress", job.Progress)
+			} else {
+				svc.PublishData("event.jobs.stopping", job.Progress)
+			}
+		} else {
+			svc.PublishData("event.jobs.failure", job.Progress)
+		}
+	}
+
+	// request.Progress = &types.JobProgress{Current: &types.Progress{}, Total: &types.Progress{}}
 	// fmt.Printf("jobs.runjob Un-marshalled JobRequest: %v\n", job)
-	// svc.jobs[request.ID] = job
+	svc.jobs[request.ID] = job
 
-	// go func() {
-	// 	// Find 'inner' path and clear it
-	// 	if err := os.Remove(job.Repository.InnerPath); err != nil && !os.IsNotExist(err) {
-	// 		svc.LogError("Failed to remove inner link, aborting:", err)
-	// 		return
-	// 	}
+	go func() {
+		// Find 'inner' path and clear it
+		if err := os.Remove(repo.InnerPath); err != nil && !os.IsNotExist(err) {
+			svc.LogError("Failed to remove inner link, aborting:", err)
+			return
+		}
 
-	// 	job.Repository.Available = false
-	// 	if result := common.DB.Save(&job.Repository); result.Error != nil {
-	// 		svc.LogError(fmt.Sprintf("Job %d about to start. Failed to update repository data", job.Repository.ID), result.Error)
-	// 	}
+		repo.Available = false
+		job.Progress.ErrorMessage = "DOWNLOADING"
 
-	// 	if strings.HasPrefix(job.Repository.URL, "http") {
-	// 		context := rippers.CreateHttpContext(job)
-	// 		if job.Repository.Recursive {
-	// 			context.DownloadDirHttp()
-	// 		} else {
-	// 			context.DownloadSingleFileHttp()
-	// 		}
-	// 	} else if strings.HasPrefix(job.Repository.URL, "smb") {
-	// 		context := rippers.CreateSmbContext(job)
-	// 		context.DownloadDirectoryCifs()
-	// 	}
+		if strings.HasPrefix(repo.URL, "http") {
+			context := rippers.CreateHttpContext(job, repo)
+			if repo.Recursive {
+				context.DownloadDirHttp()
+			} else {
+				context.DownloadSingleFileHttp()
+			}
+		} else if strings.HasPrefix(repo.URL, "smb") {
+			context := rippers.CreateSmbContext(job, repo)
+			context.DownloadDirectoryCifs()
+		}
 
-	// 	if job.Progress.Error == nil {
-	// 		svc.PublishData("event.jobs.scanning", job.Progress)
-	// 		svc.LogInfo(fmt.Sprintf("Scanning: %s", job.LocalPath))
-	// 		if err, exitcode, out := system.Run(system.CMD_CLAMSCAN, job.LocalPath); err != nil {
-	// 			fmt.Printf("CLAM exited with status code: %d, out: %s", exitcode, string(out))
+		if job.Progress.Error == nil {
+			svc.PublishData("event.jobs.scanning", job.Progress)
+			svc.LogInfo(fmt.Sprintf("Scanning: %s", repo.OuterPath))
+			job.Progress.ErrorMessage = "SCANNING"
+			if err, exitcode, out := system.Run(system.CMD_CLAMSCAN, repo.OuterPath); err != nil {
+				// fmt.Printf("CLAM exited with status code: %d, out: %s", exitcode, string(out))
 
-	// 			job.Progress.Error = err
-	// 			text := string(out)
-	// 			if exitcode == 1 {
-	// 				// Infections are reported from ClamAV as two lines per found infection separated by \n (and possibly \r)
-	// 				// Lets report each infection individually
-	// 				info := strings.ReplaceAll(text, "\r", "") // First normalize the text by removing all \r
-	// 				parts := strings.Split(info, "\n")
-	// 				for i := 0; i < len(parts)-1; i += 2 {
-	// 					if runtime.GOOS == "windows" {
-	// 						// svc.LogInfection(strings.Split(parts[i], ":")[2], parts[i+1])
-	// 						fmt.Println(strings.Split(parts[i], ":")[2], parts[i+1])
-	// 					} else {
-	// 						// svc.LogInfection(strings.Split(parts[i], ":")[1], parts[i+1])
-	// 						fmt.Println(strings.Split(parts[i], ":")[2], parts[i+1])
-	// 					}
-	// 				}
+				job.Progress.Error = err
+				job.Progress.ErrorMessage = err.Error()
 
-	// 				svc.PublishData("event.jobs.infected", job.Progress)
-	// 				svc.LogError(fmt.Sprintf("Job %d failed", job.Repository.ID), fmt.Errorf("INFECTED data is not available at inner side, cause: %s", text))
-	// 			} else if exitcode == 2 {
-	// 				svc.PublishData("event.jobs.failed", job.Progress)
-	// 				svc.LogError(fmt.Sprintf("Job %d failed", job.Repository.ID), fmt.Errorf("Scan failed. Data is not available at inner side, cause: %s", text))
-	// 			}
-	// 			return
-	// 		}
-	// 	}
+				text := string(out)
+				if exitcode == 1 {
+					// Infections are reported from ClamAV as two lines per found infection separated by \n (and possibly \r)
+					// Lets report each infection individually
+					info := strings.ReplaceAll(text, "\r", "") // First normalize the text by removing all \r
+					parts := strings.Split(info, "\n")
+					for i := 0; i < len(parts)-1; i += 2 {
+						job.Progress.CurrentPath = fmt.Sprintf("%s %s", strings.Split(parts[i], ":")[2], parts[i+1])
+						if runtime.GOOS == "windows" {
+							// svc.LogInfection(strings.Split(parts[i], ":")[2], parts[i+1])
+							// fmt.Println(strings.Split(parts[i], ":")[2], parts[i+1])
+						} else {
+							// svc.LogInfection(strings.Split(parts[i], ":")[1], parts[i+1])
+							// fmt.Println(strings.Split(parts[i], ":")[2], parts[i+1])
+						}
+					}
 
-	// 	// Report job completed if there are no errors and link destination path to 'inner'
-	// 	if job.Progress.Error == nil {
-	// 		svc.PublishData("event.jobs.completed", job.Progress)
-	// 		folder := path.Dir(job.Repository.InnerPath)
-	// 		os.MkdirAll(folder, os.ModeDir)
-	// 		wd, _ := os.Getwd()
-	// 		if err := os.Symlink(filepath.VolumeName(wd)+job.LocalPath, job.Repository.InnerPath); err == nil {
-	// 			job.Repository.LastSuccess = time.Now().UTC()
-	// 			job.Repository.Available = true
-	// 			if result := common.DB.Save(&job.Repository); result.Error != nil {
-	// 				svc.LogError(fmt.Sprintf("Job %d completed. Failed to update repository data", job.Repository.ID), result.Error)
-	// 			} else {
-	// 				svc.LogInfo(fmt.Sprintf("Job %d completed. Successful completion of job. Data now available at inner side", job.Repository.ID))
-	// 			}
-	// 		} else {
-	// 			svc.LogInfo(fmt.Sprintf("Job %d completed. Failed to create inner link. Data is NOT available at inner side, cause: %#v", job.Repository.ID, err))
-	// 		}
+					job.Progress.ErrorMessage = "INFECTED"
+					svc.PublishData("event.jobs.infected", job.Progress)
+					svc.LogError(fmt.Sprintf("Repository %d failed", repo.ID), fmt.Errorf("INFECTED data is not available at inner side, cause: %s", text))
+					svc.LogInfection(fmt.Sprintf("Repository %d has INFECTED data", repo.ID), text)
+				} else if exitcode == 2 {
+					job.Progress.ErrorMessage = "FAILED"
+					svc.PublishData("event.jobs.failed", job.Progress)
+					svc.LogError(fmt.Sprintf("Repository %d failed", repo.ID), fmt.Errorf("Scan failed. Data is not available at inner side, cause: %s", text))
+				}
 
-	// 	} else {
-	// 		svc.PublishData("event.jobs.failed", job.Progress)
-	// 		svc.LogError(fmt.Sprintf("Job %d failed", job.Repository.ID), fmt.Errorf("Data is not available at inner side, cause: %#v", job.Progress.Error))
-	// 	}
+				job.Progress.Error = err
+				return
+			}
+		}
 
-	// 	if job.Command > 0 {
-	// 		svc.PublishData("event.jobs.stopped", job.Progress)
-	// 		svc.LogInfo(fmt.Sprintf("Job %d stopped. Successful stop of job. Data is NOT available at inner side", job.Repository.ID))
-	// 	}
-	// }()
+		// Report job completed if there are no errors and link destination path to 'inner'
+		if job.Progress.Error == nil {
+			svc.PublishData("event.jobs.completed", job.Progress)
+			folder := path.Dir(repo.InnerPath)
+			os.MkdirAll(folder, os.ModeDir)
+			wd, _ := os.Getwd()
+			if err := os.Symlink(filepath.VolumeName(wd)+repo.OuterPath, repo.InnerPath); err == nil {
+				svc.LogInfo(fmt.Sprintf("Repository %d completed. Successful completion of job. Data now available at inner side", repo.ID))
+			} else {
+				svc.LogInfo(fmt.Sprintf("Repository %d completed. Failed to create inner link. Data is NOT available at inner side, cause: %#v", repo.ID, err))
+			}
 
-	// return &types.Response{Success: true, Message: fmt.Sprintf("Job started, id: %d", job.Repository.ID)}, nil
+		} else {
+			svc.PublishData("event.jobs.failed", job.Progress)
+			svc.LogError(fmt.Sprintf("Repository %d failed", repo.ID), fmt.Errorf("Data is not available at inner side, cause: %#v", job.Progress.Error))
+			job.Progress.Error = err
+		}
 
-	return nil, fmt.Errorf("jobs.runjob: not yet implemented")
+		if job.Command > 0 {
+			svc.PublishData("event.jobs.stopped", job.Progress)
+			svc.LogInfo(fmt.Sprintf("Repository %d stopped. Successful stop of job. Data is NOT available at inner side", repo.ID))
+			job.Progress.Error = err
+		}
+
+		delete(svc.jobs, repo.ID)
+	}()
+
+	return &types.Response{Success: true, Message: fmt.Sprintf("Repository started, id: %d", repo.ID)}, nil
 }
 
 func (svc *JobsService) stopJob(payload string) (interface{}, error) {
-	// fmt.Printf("jobs.stopjob invoked with request: %s\n", string(payload))
+	// // fmt.Printf("jobs.stopjob invoked with request: %s\n", string(payload))
 
 	// request := &types.ByIdRequest{}
 	// if err := json.Unmarshal([]byte(payload), &request); err != nil {
@@ -179,7 +217,7 @@ func (svc *JobsService) stopJob(payload string) (interface{}, error) {
 }
 
 func (svc *JobsService) requestUrlWait(payload string) (interface{}, error) {
-	fmt.Printf("jobs.requestUrlWait invoked with request: %s\n", string(payload))
+	// // fmt.Printf("jobs.requestUrlWait invoked with request: %s\n", string(payload))
 
 	request := &types.WaitRequest{}
 	if err := json.Unmarshal([]byte(payload), &request); err != nil {
@@ -188,7 +226,7 @@ func (svc *JobsService) requestUrlWait(payload string) (interface{}, error) {
 	}
 
 	u, _ := url.Parse(request.URL)
-	fmt.Println("URL Path:", u.Path)
+	// // fmt.Println("URL Path:", u.Path)
 	// TODO: check that the request URL matches the repo URL MatchURL field (regex)
 
 	// Get the URI
@@ -202,18 +240,43 @@ func (svc *JobsService) requestUrlWait(payload string) (interface{}, error) {
 		return nil, err
 	}
 
-	fmt.Println("Storing file at:", localfile)
+	// fmt.Println("Storing file at:", localfile)
 	out, err := os.Create(localfile)
 	if err != nil {
 		svc.LogError(fmt.Sprintf("Failed to create file: %s", localfile), err)
 		return nil, err
 	}
+
 	defer out.Close()
 
 	c := &http.Client{Timeout: -1}
-	resp, err := c.Get(request.URL)
+
+	decoded, err := base64.StdEncoding.DecodeString(request.Body)
+	req, err := http.NewRequest(request.Method, request.URL, bytes.NewReader(decoded))
+	for _, v := range request.Headers {
+		req.Header.Add(v.Name, v.Value)
+	}
+
+	var resp *http.Response
+	resp, err = c.Do(req)
+
 	if err != nil {
 		return nil, err
+	}
+
+	if resp == nil {
+		return nil, fmt.Errorf("Response object is nil")
+	}
+
+	// Copy response headers
+	headers := make([]types.NameValue, 1)
+	for n, v := range resp.Header {
+		// // fmt.Println("name:", n, ", value:", v)
+		headers = append(headers, types.NameValue{Name: n, Value: v[0]})
+	}
+
+	if resp.Body == nil {
+		return nil, fmt.Errorf("Response body is nil")
 	}
 
 	defer resp.Body.Close()
@@ -223,14 +286,14 @@ func (svc *JobsService) requestUrlWait(payload string) (interface{}, error) {
 
 	err = svc.scan(localfile)
 
-	return &types.WaitResponse{Success: true, Filename: localfile, Error: err}, nil
+	return &types.WaitResponse{Success: true, Filename: localfile, Error: err, Headers: headers}, nil
 }
 
 func (svc *JobsService) scan(localfile string) error {
 
 	err, exitcode, out := system.Run(system.CMD_CLAMSCAN, localfile)
 	if err != nil {
-		fmt.Printf("CLAM exited with status code: %d, out: %s", exitcode, string(out))
+		// fmt.Printf("CLAM exited with status code: %d, out: %s", exitcode, string(out))
 		text := string(out)
 		if exitcode == 1 {
 			// Infections are reported from ClamAV as two lines per found infection separated by \n (and possibly \r)
@@ -240,10 +303,10 @@ func (svc *JobsService) scan(localfile string) error {
 			for i := 0; i < len(parts)-1; i += 2 {
 				if runtime.GOOS == "windows" {
 					// svc.LogInfection(strings.Split(parts[i], ":")[2], parts[i+1])
-					fmt.Println(strings.Split(parts[i], ":")[2], parts[i+1])
+					// fmt.Println(strings.Split(parts[i], ":")[2], parts[i+1])
 				} else {
 					// svc.LogInfection(strings.Split(parts[i], ":")[1], parts[i+1])
-					fmt.Println(strings.Split(parts[i], ":")[2], parts[i+1])
+					// fmt.Println(strings.Split(parts[i], ":")[2], parts[i+1])
 				}
 			}
 

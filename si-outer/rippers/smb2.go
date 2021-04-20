@@ -21,11 +21,12 @@ type SmbContext struct {
 	rfs       *smb2.RemoteFileSystem
 }
 
-func CreateSmbContext(job *types.Job) *SmbContext {
+func CreateSmbContext(job *types.Job, repo *types.Repository) *SmbContext {
 	context := &SmbContext{}
 	context.Job = job
 	context.processed = make(map[string]bool, 1)
-	context.Url, _ = url.Parse(job.Repository.URL)
+	context.Url, _ = url.Parse(repo.URL)
+	context.Repository = repo
 	return context
 }
 
@@ -33,22 +34,24 @@ func (context *SmbContext) DownloadDirectoryCifs() error {
 	job := context.Job
 	prefix := "/safe-import/outer"
 
-	if len(strings.TrimSpace(job.LocalPath)) == 0 {
-		if u, _ := url.Parse(job.Repository.URL); u != nil {
-			job.LocalPath = u.RequestURI()
+	outerpath := context.Repository.OuterPath
+	if len(strings.TrimSpace(outerpath)) == 0 {
+		if u, _ := url.Parse(context.Repository.URL); u != nil {
+			outerpath = u.RequestURI()
 		} else {
-			job.LocalPath = "."
+			outerpath = "."
 		}
 	}
 
-	job.LocalPath = path.Join(prefix, job.LocalPath)
+	outerpath = path.Join(prefix, outerpath)
 
-	context.MkdirIfNotExists(job.LocalPath)
+	context.MkdirIfNotExists(outerpath)
 
-	log.Printf("Downloading files from '%s' to '%s'\n", job.Repository.URL, job.LocalPath)
+	log.Printf("Downloading files from '%s' to '%s'\n", context.Repository.URL, outerpath)
 
 	conn, err := net.Dial("tcp", context.Url.Host+":445")
-	if job.ReportError(err, "DownloadDirectoryCifs:net.Dial()") {
+	if err != nil {
+		// fmt.Println("DownloadDirectoryCifs net.Dial ERROR:", err)
 		return err
 	}
 
@@ -56,14 +59,15 @@ func (context *SmbContext) DownloadDirectoryCifs() error {
 
 	di := &smb2.Dialer{
 		Initiator: &smb2.NTLMInitiator{
-			User:     job.Repository.Username,
-			Password: job.Repository.Password,
+			User:     context.Repository.Username,
+			Password: context.Repository.Password,
 		},
 	}
 
 	di.Negotiator.RequireMessageSigning = false
 	c, err := di.Dial(conn)
-	if job.ReportError(err, "DownloadDirectoryCifs:di.Dial()") {
+	if err != nil {
+		// fmt.Println("DownloadDirectoryCifs di.Dial ERROR:", err)
 		return err
 	}
 
@@ -71,9 +75,10 @@ func (context *SmbContext) DownloadDirectoryCifs() error {
 
 	share := strings.ReplaceAll(context.Url.Path, "/", `\`)
 	share = fmt.Sprintf(`\\%s%s`, context.Url.Host, share)
-	fmt.Println("c.Mount(" + share + ")")
+	// fmt.Println("c.Mount(" + share + ")")
 	rfs, err := c.Mount(share)
-	if job.ReportError(err, "DownloadDirectoryCifs:c.Mount("+`\\`+share+")") {
+	if err != nil {
+		// fmt.Println("DownloadDirectoryCifs c.Mount ERROR:", err)
 		return err
 	}
 
@@ -86,24 +91,27 @@ func (context *SmbContext) DownloadDirectoryCifs() error {
 
 	context.RemoteTree = &Folder{Name: "/"}
 	err = context.buildTreeFromURL("", context.RemoteTree)
-	if job.ReportError(err, "DownloadDirectoryCifs:context.buildTreeFromURL()") {
+	if err != nil {
+		// fmt.Println("DownloadDirectoryCifs buildTreeFromURL ERROR:", err)
 		return err
 	}
 
 	err = context.CheckDestinationPath(context.RemoteTree)
-	if job.ReportError(err, "DownloadDirectoryCifs:context.CheckDestinationPath()") {
+	if err != nil {
+		// fmt.Println("DownloadDirectoryCifs CheckDestinationPath ERROR:", err)
 		return err
 	}
 
-	fmt.Println("Copying missing or modified files: ", context.Files)
+	// fmt.Println("Copying missing or modified files: ", context.Files)
 	for f := context.Files.Front(); f != nil; f = f.Next() {
 		select {
 		case job.Command = <-job.Commands:
 			err := fmt.Errorf("Job aborted by command: %d", job.Command)
-			job.ReportError(err, "DownloadDirectoryCifs:STOP COMMAND")
+			// fmt.Println("DownloadDirectoryCifs aborted ERROR:", err)
 			return err
 		default:
 			file := f.Value.(*MissingFile)
+			// fmt.Println("Processing file: ", file.Fullname)
 			context.copyFile(file)
 		}
 
@@ -126,7 +134,7 @@ func (context *SmbContext) buildTreeFromURL(urlstr string, folder *Folder) error
 	select {
 	case job.Command = <-job.Commands:
 		err := fmt.Errorf("Job aborted by command: %d", job.Command)
-		job.ReportError(err, "buildTreeFromURL:STOP COMMAND")
+		// fmt.Println("buildTreeFromURL aborted:", err)
 		return err
 
 	default:
@@ -144,9 +152,10 @@ func (context *SmbContext) buildTreeFromURL(urlstr string, folder *Folder) error
 						child := &Folder{Name: href}
 						folder.Folders[child.Name] = child
 						context.processed[href] = true
-						// fmt.Println("Folder", child.Name, "added to folder", folder.Name)
+						// // fmt.Println("Folder", child.Name, "added to folder", folder.Name)
 						if err := context.buildTreeFromURL(path.Join(urlstr, href), child); err != nil {
 							job.Progress.Error = err
+							job.Progress.ErrorMessage = err.Error()
 							return err
 						}
 					}
@@ -157,7 +166,7 @@ func (context *SmbContext) buildTreeFromURL(urlstr string, folder *Folder) error
 						}
 
 						context.processed[href] = true
-						// fmt.Println("File", href, "added to folder", folder.Name)
+						// // fmt.Println("File", href, "added to folder", folder.Name)
 						folder.Files[href] = &File{Name: href, Size: f.Size()}
 					}
 				}
@@ -174,8 +183,8 @@ func (context *SmbContext) buildTreeFromURL(urlstr string, folder *Folder) error
 
 func (context *SmbContext) copyFile(file *MissingFile) error {
 	job := context.Job
-	target := path.Join(job.LocalPath, file.Fullname)
-	// fmt.Println("Copying file, from:", file.Fullname, ", to:", target)
+	target := path.Join(context.Repository.OuterPath, file.Fullname)
+	// // fmt.Println("Copying file, from:", file.Fullname, ", to:", target)
 
 	file.Fullname = strings.TrimLeft(file.Fullname, `/\`)
 	file.Fullname = strings.ReplaceAll(file.Fullname, "/", `\`)
@@ -185,7 +194,8 @@ func (context *SmbContext) copyFile(file *MissingFile) error {
 
 		context.MkdirIfNotExists(path.Dir(target))
 		out, err := os.Create(target)
-		if job.ReportError(err, "copyFile:rfs.Open()") {
+		if err != nil {
+			// fmt.Println("copyFile os.Create ERROR:", err)
 			return err
 		}
 
@@ -201,10 +211,10 @@ func (context *SmbContext) copyFile(file *MissingFile) error {
 		out.Close()
 		done <- n
 
-		job.ReportError(err, "copyFile:io.Copy()")
+		// fmt.Println("copyFile io.Copy ERROR:", err)
 
 	} else {
-		job.ReportError(err, "copyFile:rfs.Open()")
+		// fmt.Println("copyFile rfs.Open ERROR:", err)
 	}
 
 	return err
@@ -238,7 +248,7 @@ func DownloadDirCifs(base string, startDir string, rfs *smb2.RemoteFileSystem, j
 
 						out, err := os.Create(path.Join(b, startDir, f.Name()))
 						if err != nil {
-							fmt.Println(path.Join(b, startDir, f.Name()))
+							// fmt.Println(path.Join(b, startDir, f.Name()))
 							panic(err)
 						}
 						defer out.Close()
@@ -251,17 +261,17 @@ func DownloadDirCifs(base string, startDir string, rfs *smb2.RemoteFileSystem, j
 
 						n, err := io.Copy(out, d)
 						job.ReportError(err, "DownloadDirCifs:io.Copy()")
-						fmt.Println(n, "bytes copied to file")
+						// fmt.Println(n, "bytes copied to file")
 						out.Close()
 						done <- n
 					}
 				} else {
-					fmt.Println(p, "error")
+					// fmt.Println(p, "error")
 				}
 			}
 		}
 	} else {
-		fmt.Println(startDir, "error")
+		// fmt.Println(startDir, "error")
 	}
 }
 */

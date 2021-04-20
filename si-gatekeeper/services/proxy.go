@@ -87,24 +87,30 @@ func (svc *ProxyService) prune(payload string) (interface{}, error) {
 func (svc *ProxyService) httpGet(payload string) (interface{}, error) {
 	var request types.HttpDownloadRequest
 	if err := json.Unmarshal([]byte(payload), &request); err != nil {
-		svc.LogGeneric("error", "Marshalling request to JSON failed: %#v", err)
+		svc.LogGeneric("error", "Marshalling request payload JSON to request failed: %#v, %s", err, payload)
 		return nil, err
 	}
 
-	jobrequest := otypes.WaitRequest{URL: request.URL}
+	// fmt.Println("Processing request:", request)
+
+	jobrequest := otypes.WaitRequest{URL: request.URL, Method: request.Method, Body: request.Body}
+	for _, v := range request.Headers {
+		jobrequest.Headers = append(jobrequest.Headers, otypes.NameValue{Name: v.Name, Value: v.Value})
+	}
+
 	if response, err := jobsSvc.RequestMessage("requesturlwait", jobrequest); err == nil {
 		var r otypes.WaitResponse
 		if err := json.Unmarshal([]byte(response.Payload), &r); err != nil {
-			svc.LogGeneric("error", "Marshalling request to JSON failed: %#v", err)
+			svc.LogGeneric("error", "Marshalling response JSON payload to response failed: %#v, %s", err, response.Payload)
 			return nil, err
 		}
 
-		fmt.Println("RESPONSE:", r)
+		// fmt.Println("RESPONSE:", r)
 
 		if r.Success {
 			if err, exitcode, infos := common.Scan(r.Filename); err != nil {
-				fmt.Println("SCAN failed", err, exitcode, infos)
-				svc.LogError("SCAN failed", err)
+				// fmt.Println("SCAN failed", err, exitcode, infos)
+				svc.LogError(fmt.Sprintf("SCAN failed (exitcode: %d, infos: %#v)", exitcode, infos), err)
 				return nil, err
 			}
 
@@ -121,6 +127,9 @@ func (svc *ProxyService) httpGet(payload string) (interface{}, error) {
 			}
 
 			msg := types.HttpDownloadResponse{URL: request.URL, Filename: innerpath}
+			for _, v := range r.Headers {
+				msg.Headers = append(msg.Headers, types.NameValue{Name: v.Name, Value: v.Value})
+			}
 			return msg, nil
 		}
 	} else {

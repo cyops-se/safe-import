@@ -39,6 +39,7 @@ type MissingFile struct {
 // Context keep data specific for each ripping request
 type Context struct {
 	Job        *types.Job
+	Repository *types.Repository
 	Files      *list.List // Files to download
 	TotalCount int
 	TotalSize  int64
@@ -50,7 +51,7 @@ func (context *Context) LoadTree(folder *Folder) {
 		folder = &Folder{Folders: make(map[string]*Folder, 1), Files: make(map[string]*File, 1)}
 	}
 
-	localdb := path.Join(context.Job.LocalPath, "check.json")
+	localdb := path.Join(context.Repository.OuterPath, "check.json")
 	if data, err := ioutil.ReadFile(localdb); err == nil {
 		err = json.Unmarshal(data, folder)
 	}
@@ -60,7 +61,7 @@ func (context *Context) LoadTree(folder *Folder) {
 
 func (context *Context) SaveTree(folder *Folder) error {
 	j, _ := json.MarshalIndent(folder, "", "    ")
-	localdb := path.Join(context.Job.LocalPath, "check.json")
+	localdb := path.Join(context.Repository.OuterPath, "check.json")
 	f, err := os.Create(localdb)
 	if err == nil {
 		defer f.Close()
@@ -72,28 +73,26 @@ func (context *Context) SaveTree(folder *Folder) error {
 func (context *Context) MkdirIfNotExists(folder string) error {
 	_, err := ioutil.ReadDir(folder)
 	if err != nil {
-		err := os.MkdirAll(folder, os.ModeDir|os.ModePerm)
-		if context.Job.ReportError(err, "context.MkdirIfNotExists()") {
-			return err
-		}
+		err = os.MkdirAll(folder, os.ModeDir|os.ModePerm)
 	}
 	return err
 }
 
 func (folder *Folder) traverseFolder(context *Context, destination string, files *list.List, totalsize *int64) {
 	job := context.Job
-	basepath := job.LocalPath
+	basepath := context.Repository.OuterPath
 
 	if job.Command != 0 {
 		return
 	}
 
-	// fmt.Println("Traversing folder", path.Join(destination, folder.Name))
+	// // fmt.Println("Traversing folder", path.Join(destination, folder.Name))
 
 	select {
 	case job.Command = <-job.Commands:
 		err := fmt.Errorf("Job aborted by command: %d", job.Command)
-		job.ReportError(err, "traverseFolder:STOP COMMAND")
+		fmt.Println("traverseFolder ERROR:", err)
+		// job.ReportError(err, "traverseFolder:STOP COMMAND")
 		return
 	default:
 		// Check the folders in this folder
@@ -105,13 +104,13 @@ func (folder *Folder) traverseFolder(context *Context, destination string, files
 		for _, f := range folder.Files {
 			fullname := path.Join(destination, folder.Name, f.Name)
 			fullpath := path.Join(basepath, fullname)
-			// fmt.Println("Checking local file:", fullpath)
+			// // fmt.Println("Checking local file:", fullpath)
 			if fi, err := os.Stat(fullpath); err != nil {
-				// fmt.Println("Adding missing file:", fullname, f.Name)
+				// // fmt.Println("Adding missing file:", fullname, f.Name)
 				*totalsize += f.Size
 				files.PushBack(&MissingFile{Fullname: fullname, File: f})
 			} else if fi.Size() != f.Size {
-				// fmt.Println("Adding file with different size:", fullname, fi.Size(), f.Name, f.Size)
+				// // fmt.Println("Adding file with different size:", fullname, fi.Size(), f.Name, f.Size)
 				*totalsize += f.Size
 				files.PushBack(&MissingFile{Fullname: fullname, File: f})
 			}
@@ -141,23 +140,27 @@ func (context *Context) PrintDownloadPercent(done chan int64) error {
 	stop := false
 	lastSize := int64(0)
 	count := 0
+	outerpath := context.Repository.OuterPath
+
 	for {
 		select {
 		case <-done:
 			stop = true
 		default:
 			if count > 250 { // Every 250 * 20 millisecs = every 5 sec
-				filename := path.Join(job.LocalPath, job.Progress.CurrentPath)
+				filename := path.Join(outerpath, job.Progress.CurrentPath)
 				filename = strings.ReplaceAll(filename, "\\", "/")
 				file, err := os.Open(filename)
-				if job.ReportError(err, "printDownloadPercent:os.Open()") {
+				if err != nil {
+					// fmt.Println("PrintDownloadPercent os.Open ERROR:", err)
 					return err
 				}
 
 				fi, err := file.Stat()
 				file.Close()
 
-				if job.ReportError(err, "printDownloadPercent:file.Stat()") {
+				if err != nil {
+					// fmt.Println("PrintDownloadPercent file.Stat ERROR:", err)
 					return err
 				}
 

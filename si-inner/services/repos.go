@@ -3,13 +3,17 @@ package services
 import (
 	"encoding/base64"
 	"encoding/json"
-	"fmt"
+	"log"
 	"path"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/cyops-se/safe-import/si-inner/common"
 	"github.com/cyops-se/safe-import/si-inner/types"
+	outertypes "github.com/cyops-se/safe-import/si-outer/types"
 	"github.com/cyops-se/safe-import/usvc"
+	"github.com/nats-io/nats.go"
 )
 
 type RepositoryService struct {
@@ -31,6 +35,9 @@ func (svc *RepositoryService) Initialize(broker *usvc.UsvcBroker) {
 		svc.SaveSettings() // Save default settings. Though we don't actually use the settings right now...
 	}
 
+	// Subscribe for job events that affect repo status
+	broker.Subscribe("data.1.si-outer.jobs.>", svc.eventHandler)
+
 	svc.Executor = svc.execute
 	svc.SetTaskIdleTime(60 * 1) // every minute
 	svc.execute()
@@ -45,7 +52,7 @@ func (svc *RepositoryService) allItems(payload string) (interface{}, error) {
 		svc.LogGeneric("error", "Error while accessing local database: %#v", result.Error)
 		return nil, result.Error
 	} else {
-		fmt.Println("result: ", result)
+		// fmt.Println("result: ", result)
 	}
 
 	return items, nil
@@ -164,4 +171,36 @@ func (svc *RepositoryService) deletebyid(payload string) (interface{}, error) {
 	}
 
 	return item, nil
+}
+
+func (svc *RepositoryService) eventHandler(m *nats.Msg) {
+	var event outertypes.Progress
+	if err := json.Unmarshal(m.Data, &event); err != nil {
+		log.Println("ERROR: Failed to unmarshal log entry:", string(m.Data), err)
+		return
+	}
+
+	// fmt.Println("EVENT", event)
+
+	// Find the repo
+	var repo types.Repository
+	if result := common.DB.First(&repo, event.ID); result.Error != nil {
+		svc.LogGeneric("error", "Could not find repo from event, error: %#v", result.Error)
+		return
+	}
+
+	// fmt.Println("REPO", repo)
+
+	if strings.HasSuffix(m.Subject, "completed") {
+		repo.LastSuccess = time.Now().UTC()
+		repo.Available = true
+	} else if strings.HasSuffix(m.Subject, "stopped") {
+		repo.LastFailure = time.Now().UTC()
+	} else if strings.HasSuffix(m.Subject, "infected") {
+		repo.LastFailure = time.Now().UTC()
+	} else if strings.HasSuffix(m.Subject, "failed") {
+		repo.LastFailure = time.Now().UTC()
+	}
+
+	common.DB.Save(&repo)
 }

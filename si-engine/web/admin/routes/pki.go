@@ -1,7 +1,6 @@
 package routes
 
 import (
-	"fmt"
 	"net/http"
 
 	db "github.com/cyops-se/safe-import/si-engine/web/admin/db"
@@ -20,7 +19,7 @@ func GetAllCertificates(c *gin.Context) {
 	var certs []db.Certificate
 	result := db.DB.Find(&certs)
 	if result.Error != nil {
-		fmt.Println("ERROR GetAllCertificates:", result.Error)
+		// fmt.Println("ERROR GetAllCertificates:", result.Error)
 		c.JSON(http.StatusNoContent, gin.H{"error": result.Error})
 		return
 	}

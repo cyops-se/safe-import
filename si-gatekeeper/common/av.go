@@ -1,7 +1,6 @@
 package common
 
 import (
-	"fmt"
 	"runtime"
 	"strings"
 
@@ -13,7 +12,7 @@ func Scan(localfile string) (error, int, []types.InfectionInfo) {
 
 	err, exitcode, out := system.Run(system.CMD_CLAMSCAN, localfile)
 	if err != nil {
-		fmt.Printf("CLAM exited with status code: %d, out: %s", exitcode, string(out))
+		// fmt.Printf("CLAM exited with status code: %d, out: %s", exitcode, string(out))
 		text := string(out)
 		if exitcode == 1 {
 			// Infections are reported from ClamAV as two lines per found infection separated by \n (and possibly \r)
@@ -23,10 +22,10 @@ func Scan(localfile string) (error, int, []types.InfectionInfo) {
 			for i := 0; i < len(parts)-1; i += 2 {
 				if runtime.GOOS == "windows" {
 					// svc.LogInfection(strings.Split(parts[i], ":")[2], parts[i+1])
-					fmt.Println(strings.Split(parts[i], ":")[2], parts[i+1])
+					// fmt.Println(strings.Split(parts[i], ":")[2], parts[i+1])
 				} else {
 					// svc.LogInfection(strings.Split(parts[i], ":")[1], parts[i+1])
-					fmt.Println(strings.Split(parts[i], ":")[2], parts[i+1])
+					// fmt.Println(strings.Split(parts[i], ":")[2], parts[i+1])
 				}
 			}
 		}

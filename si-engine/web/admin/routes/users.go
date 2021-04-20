@@ -1,7 +1,6 @@
 package routes
 
 import (
-	"fmt"
 	"net/http"
 
 	db "github.com/cyops-se/safe-import/si-engine/web/admin/db"
@@ -22,7 +21,7 @@ func GetAllUsers(c *gin.Context) {
 	var users []db.UserData
 	result := db.DB.Model(&db.User{}).Find(&users)
 	if result.Error != nil {
-		fmt.Println("ERROR GetAllUsers:", result.Error)
+		// fmt.Println("ERROR GetAllUsers:", result.Error)
 		c.JSON(http.StatusNoContent, gin.H{"error": result.Error})
 		return
 	}

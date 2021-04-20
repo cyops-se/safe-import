@@ -2,9 +2,11 @@ package services
 
 import (
 	"crypto/tls"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
@@ -43,25 +45,26 @@ func (svc *InnerHttpService) Initialize(broker *usvc.UsvcBroker) {
 	svc.SetTaskIdleTime(60 * 1) // every minute
 	svc.execute()
 
-	go svc.startHTTPSServer()
-	go svc.startHTTPServer()
+	go svc.startHTTPSServer(443)
+	go svc.startHTTPServer(80)
+	go svc.startHTTPServer(8530)
 }
 
 // Starts the HTTPS server
-func (svc *InnerHttpService) startHTTPSServer() {
+func (svc *InnerHttpService) startHTTPSServer(port int) {
 	// Create a router for HTTPS
 	r2 := mux.NewRouter()
 	r2.PathPrefix("/").HandlerFunc(svc.handleHTTPSrequest)
 
 	// Create HTTPS server with custom config
 	s := &http.Server{
-		Addr:      ":443",
+		Addr:      fmt.Sprintf(":%d", port),
 		Handler:   r2,
 		TLSConfig: new(tls.Config),
 	}
 	s.TLSConfig.GetCertificate = common.GetCertificateFunc
 
-	svc.LogGeneric("info", "Starting HTTPS server at port :443")
+	svc.LogGeneric("info", "Starting HTTPS server at port :%d", port)
 	err := s.ListenAndServeTLS("", "")
 	if err != nil {
 		svc.LogGeneric("error", "Failed to start HTTPS server: %s", err.Error())
@@ -69,13 +72,13 @@ func (svc *InnerHttpService) startHTTPSServer() {
 }
 
 // Starts the HTTP server
-func (svc *InnerHttpService) startHTTPServer() {
+func (svc *InnerHttpService) startHTTPServer(port int) {
 	// Create a router for HTTP
 	r := mux.NewRouter()
 	r.PathPrefix("/").HandlerFunc(svc.handleHTTPrequest)
 
-	svc.LogGeneric("info", "Starting HTTP server at port :80")
-	err := http.ListenAndServe(":80", r)
+	svc.LogGeneric("info", "Starting HTTP server at port :%d", port)
+	err := http.ListenAndServe(fmt.Sprintf(":%d", port), r)
 	if err != nil {
 		svc.LogGeneric("error", "Failed to start HTTP server: %s", err.Error())
 	}
@@ -103,10 +106,21 @@ func (svc *InnerHttpService) processHttp(w http.ResponseWriter, r *http.Request,
 	// See if the URL matches one in the lists (white, black, grey)
 	if match := svc.matchURL(u, "white"); match != nil {
 		if match.Allowed {
-			fmt.Println("WHITE URL ALLOWED!", msg.URL, msg.FromIP)
-			request := &gtypes.HttpDownloadRequest{msg.URL}
+			svc.LogGeneric("inner", "WHITE URL ALLOWED: %s, from %s", msg.URL, msg.FromIP)
+			request := &gtypes.HttpDownloadRequest{URL: msg.URL, Method: r.Method, Headers: nil, Body: ""}
+
+			// Add headers
+			for n, v := range r.Header {
+				request.Headers = append(request.Headers, gtypes.NameValue{Name: n, Value: v[0]})
+			}
+
+			// Add body
+			body, _ := ioutil.ReadAll(r.Body)
+			request.Body = base64.StdEncoding.EncodeToString(body)
+			// // fmt.Println("BODY", string(body))
+			// // fmt.Println("ENCODED BODY", string(request.Body))
+
 			if response, err := proxySvc.RequestMessage("httpget", request); err == nil {
-				fmt.Println("RESPONSE request", response)
 				if len(response.Payload) <= 0 {
 					svc.LogError("Failed to download file via proxy", fmt.Errorf("Response payload from proxy download request is empty"))
 				}
@@ -115,7 +129,14 @@ func (svc *InnerHttpService) processHttp(w http.ResponseWriter, r *http.Request,
 				if err := json.Unmarshal([]byte(response.Payload), &dr); err != nil {
 					svc.LogGeneric("error", "Marshalling proxy response to JSON failed: %#v", err)
 				}
-				fmt.Println("RESPONSE payload", dr)
+
+				for _, v := range dr.Headers {
+					if len(strings.TrimSpace(v.Name)) > 0 {
+						// fmt.Println("HEADER ", v.Name, v.Value)
+						w.Header().Set(v.Name, v.Value)
+					}
+				}
+
 				if file, err := os.Open(dr.Filename); err == nil {
 					defer file.Close()
 					io.Copy(w, file)
@@ -126,14 +147,15 @@ func (svc *InnerHttpService) processHttp(w http.ResponseWriter, r *http.Request,
 				svc.LogError("Failed to request job from proxy", err)
 			}
 		} else {
-			fmt.Println("WHITE URL NOT ALLOWED!", msg.URL, msg.FromIP)
+			svc.LogGeneric("inner", "WHITE URL BLOCKED: %s, from %s", msg.URL, msg.FromIP)
 		}
 	} else if match := svc.matchURL(u, "black"); match != nil {
-		fmt.Println("BLACK URL ALERT!", msg.URL, msg.FromIP)
+		svc.LogGeneric("alert", "BLACK URL ALERT: %s, from %s", msg.URL, msg.FromIP)
 	} else if match := svc.checkGrey(u); match == nil {
 		msg.Class = "grey"
 		msg.Count = 1
 		common.DB.Create(msg)
+		svc.LogGeneric("info", "GREY URL ADDED: %s, from %s", msg.URL, msg.FromIP)
 	}
 }
 
@@ -192,7 +214,7 @@ func (svc *InnerHttpService) byFieldName(payload string) (interface{}, error) {
 		svc.LogGeneric("error", "Failed to query database, error: %#v", result.Error)
 		return nil, result.Error
 	} else {
-		fmt.Println("byFieldName items count: ", result.RowsAffected, args.Name, args.Value)
+		// fmt.Println("byFieldName items count: ", result.RowsAffected, args.Name, args.Value)
 	}
 
 	return items, nil

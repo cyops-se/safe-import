@@ -1,7 +1,6 @@
 package routes
 
 import (
-	"fmt"
 	"net/http"
 
 	db "github.com/cyops-se/safe-import/si-engine/web/admin/db"
@@ -24,7 +23,7 @@ func GetAllLogs(c *gin.Context) {
 	var logs []db.Log
 	result := db.DB.Find(&logs)
 	if result.Error != nil {
-		fmt.Println("ERROR GetAllLogs:", result.Error)
+		// fmt.Println("ERROR GetAllLogs:", result.Error)
 		c.JSON(http.StatusNoContent, gin.H{"error": result.Error})
 		return
 	}
@@ -45,16 +44,18 @@ func GetLogByID(c *gin.Context) {
 }
 
 func GetLogByField(c *gin.Context) {
-	var log db.Log
+	var logs []db.Log
 	f := c.Params.ByName("name")
 	v := c.Params.ByName("value")
-	result := db.DB.First(&log, "? = ?", f, v)
+	result := db.DB.Where(map[string]interface{}{f: v}).Find(&logs)
 	if result.Error != nil {
 		c.JSON(http.StatusNoContent, gin.H{"error": result.Error})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"log": log})
+	// fmt.Println("RESULTS:", result)
+
+	c.JSON(http.StatusOK, gin.H{"logs": logs})
 }
 
 func NewLog(c *gin.Context) {

@@ -1,8 +1,6 @@
 package common
 
 import (
-	"fmt"
-
 	"github.com/cyops-se/safe-import/si-outer/types"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -17,13 +15,13 @@ func ConnectDatabase() {
 	})
 
 	if err != nil {
-		fmt.Println("Failed to connect to database", err)
+		// fmt.Println("Failed to connect to database", err)
 		return
 	}
 
-	fmt.Println("Database connected!")
+	// fmt.Println("Database connected!")
 
-	database.AutoMigrate(&types.Job{})
+	database.AutoMigrate(&types.Job{}, &types.Repository{})
 
 	DB = database
 }

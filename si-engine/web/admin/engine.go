@@ -3,9 +3,7 @@ package admin
 import (
 	"container/list"
 	"encoding/json"
-	"fmt"
 	"log"
-	"net/http"
 
 	jwt "github.com/appleboy/gin-jwt/v2"
 	db "github.com/cyops-se/safe-import/si-engine/web/admin/db"
@@ -20,7 +18,7 @@ import (
 func Run(broker *usvc.UsvcBroker) {
 	db.ConnectDatabase()
 
-	fmt.Println("STARTING ADMIN WEB")
+	// fmt.Println("STARTING ADMIN WEB")
 	Log("info", "STARTING ADMIN WEB", "")
 	connections := list.New()
 
@@ -50,6 +48,10 @@ func Run(broker *usvc.UsvcBroker) {
 	}
 
 	broker.Subscribe(">", func(m *nats.Msg) {
+		if m.Subject != "system.heartbeat" {
+			// fmt.Println("NATS message: ", m.Subject, string(m.Data))
+		}
+
 		msg := gin.H{"topic": m.Subject, "data": gin.H{"message": string(m.Data)}}
 		for e := connections.Front(); e != nil; e = e.Next() {
 			conn := e.Value.(*websocket.Conn)
@@ -66,22 +68,6 @@ func Run(broker *usvc.UsvcBroker) {
 		db.DB.Create(&entry)
 	})
 
-	broker.Subscribe("capture.http", func(m *nats.Msg) {
-		handleHttpSubject(m, "HTTP")
-	})
-
-	broker.Subscribe("capture.https", func(m *nats.Msg) {
-		handleHttpSubject(m, "HTTPS")
-	})
-
-	broker.Subscribe("capture.dns", func(m *nats.Msg) {
-		var entry db.NetCapture
-		json.Unmarshal(m.Data, &entry)
-		entry.Type = "DNS"
-		entry.Query = entry.Data
-		db.DB.Create(&entry)
-	})
-
 	r.NoRoute(authMiddleware.MiddlewareFunc(), func(c *gin.Context) {
 		claims := jwt.ExtractClaims(c)
 		log.Printf("NoRoute claims: %#v\n", claims)
@@ -89,31 +75,4 @@ func Run(broker *usvc.UsvcBroker) {
 	})
 
 	r.Run(":7499")
-}
-
-func handleHttpSubject(m *nats.Msg, t string) {
-	var requestData struct {
-		Host       string      `json:"host"`
-		Scheme     string      `json:"scheme"`
-		Method     string      `json:"method"`
-		URL        string      `json:"url"`
-		RequestURI string      `json:"requesturi"`
-		Headers    http.Header `json:"headers"`
-		Body       string      `json:"body"`
-	}
-
-	entry := &db.NetCapture{Type: t}
-	if err := json.Unmarshal(m.Data, &entry); err == nil {
-		if err = json.Unmarshal([]byte(entry.Data), &requestData); err == nil {
-			headers, _ := json.Marshal(requestData.Headers)
-			entry.ToHost = requestData.Host
-			entry.Method = requestData.Method
-			entry.URL = fmt.Sprintf("%s://%s%s", requestData.Scheme, requestData.Host, requestData.RequestURI)
-			entry.RequestURI = requestData.RequestURI
-			entry.Headers = string(headers)
-		}
-		db.DB.Create(&entry)
-	} else {
-		log.Println("Failed to unmarshal JSON from collector, err:", err)
-	}
 }

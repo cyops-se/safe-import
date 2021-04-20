@@ -1,8 +1,6 @@
 package db
 
 import (
-	"fmt"
-
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -14,14 +12,14 @@ func ConnectDatabase() {
 	// dsn := "user=dev password=hemligt dbname=dev host=localhost port=5432"
 	// database, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
-		fmt.Println("Failed to connect to database", err)
+		// fmt.Println("Failed to connect to database", err)
 		return
 	}
 
-	fmt.Println("Database connected!")
+	// fmt.Println("Database connected!")
 
 	database.AutoMigrate(&User{}, &Log{}, &KeyValuePair{})
-	database.AutoMigrate(&NetCapture{}, &NetRepos{}, &Certificate{})
+	database.AutoMigrate(&NetCapture{}, &Certificate{})
 
 	DB = database
 }

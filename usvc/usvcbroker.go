@@ -74,7 +74,7 @@ func (broker *UsvcBroker) Log(fullname string, category string, title string) {
 	} else if category == "warning" {
 		fmt.Printf("%s\tWarning: %s\n", t, title)
 	} else {
-		fmt.Printf("%s\tError: %s\n", t, title)
+		fmt.Printf("%s\tTitle: %s\n", t, title)
 	}
 
 	var metalog types.MetaLog
@@ -82,6 +82,31 @@ func (broker *UsvcBroker) Log(fullname string, category string, title string) {
 	metalog.Source = fullname
 	metalog.Category = category
 	metalog.Title = title
+
+	// json := fmt.Sprintf("{\"time\": \"%s\", \"source\": \"%s\", \"category\": \"%s\", \"title\": \"%s\"}", t, fullname, category, title)
+	j, _ := json.Marshal(&metalog)
+
+	broker.PublishBytes(subject, j)
+}
+
+func (broker *UsvcBroker) LogDescription(fullname string, category string, title string, description string) {
+	subject := fmt.Sprintf("log.%s.%s", fullname, category)
+	category = strings.ToLower(category)
+	t := time.Now().UTC().Format("2006-01-02 15:04:05.000")
+	if category == "info" {
+		fmt.Printf("%s\tInfo: %s\n", t, title)
+	} else if category == "warning" {
+		fmt.Printf("%s\tWarning: %s\n", t, title)
+	} else {
+		fmt.Printf("%s\tTitle: %s, Description: %s\n", t, title, description)
+	}
+
+	var metalog types.MetaLog
+	metalog.Time = time.Now().UTC()
+	metalog.Source = fullname
+	metalog.Category = category
+	metalog.Title = title
+	metalog.Description = description
 
 	// json := fmt.Sprintf("{\"time\": \"%s\", \"source\": \"%s\", \"category\": \"%s\", \"title\": \"%s\"}", t, fullname, category, title)
 	j, _ := json.Marshal(&metalog)
@@ -105,6 +130,11 @@ func (broker *UsvcBroker) LogError(fullname string, msg string, err error) {
 func (broker *UsvcBroker) LogGeneric(name string, category string, format string, args ...interface{}) {
 	title := fmt.Sprintf(format, args...)
 	broker.Log(name, category, title)
+}
+
+func (broker *UsvcBroker) LogInfection(name string, title string, format string, args ...interface{}) {
+	description := fmt.Sprintf(format, args...)
+	broker.LogDescription(name, "infection", title, description)
 }
 
 func GetClientName() string {
@@ -283,7 +313,7 @@ func (broker *UsvcBroker) IsServiceAvailable(fullname string) bool {
 
 func (broker *UsvcBroker) microServiceV1Handler(msg *nats.Msg) {
 	dispatchname := msg.Subject
-	// fmt.Println("microServiceV1Handler: received subject:", dispatchname);
+	// // fmt.Println("microServiceV1Handler: received subject:", dispatchname);
 
 	request := msg.Data
 	response := &types.Response{}
@@ -292,8 +322,14 @@ func (broker *UsvcBroker) microServiceV1Handler(msg *nats.Msg) {
 	result, err, wrongHost := broker.DispatchBytes(dispatchname, request)
 	if err == nil {
 		if result != nil {
-			data, _ := json.Marshal(result)
-			response.Payload = string(data)
+			data, err := json.Marshal(result)
+			if err != nil {
+				broker.LogError("BROKER", "Failed to marshal result from "+dispatchname+" (request dispatch)", err)
+				response.Header.Status.ResultCode = 99
+				response.Header.Status.ResultMessage = err.Error()
+			} else {
+				response.Payload = string(data)
+			}
 		}
 	} else {
 		broker.LogError("BROKER", "Either a broker-internal error, a microservice failure or a bad client request happened in "+dispatchname+" (request dispatch)", err)

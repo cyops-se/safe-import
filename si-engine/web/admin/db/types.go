@@ -60,34 +60,6 @@ type NetCapture struct {
 	Data       string    `json:"data"`
 }
 
-type NetRepos struct {
-	gorm.Model
-	Type      string    `json:"type"`
-	ToHost    string    `json:"tohost"`
-	Method    string    `json:"method"`
-	URL       string    `json:"url"`
-	Headers   string    `json:"headers"`
-	LocalPath string    `json:"localpath"`
-	LastCheck time.Time `json:"lastcheck"`
-	LastSync  time.Time `json:"lastsync"`
-	State     string    `json:"state"`
-}
-
-// type HttpRequestData struct {
-// 	Host    string      `json:"host"`
-// 	Url     string      `json:"Url"`
-// 	Headers http.Header `json:"headers"`
-// 	Body    string      `json:"body"`
-// }
-
-// type NetHttpCapture struct {
-// 	NetCapture
-// 	Host    string `json:"host"`
-// 	Url     string `json:"url"`
-// 	Headers string `json:"headers"`
-// 	Body    string `json:"body"`
-// }
-
 type Certificate struct {
 	gorm.Model
 	Name        string `form:"name" json:"name" binding:"required"`
