@@ -32,7 +32,6 @@ func CreateSmbContext(job *types.Job, repo *types.Repository) *SmbContext {
 
 func (context *SmbContext) DownloadDirectoryCifs() error {
 	job := context.Job
-	prefix := "/safe-import/outer"
 
 	outerpath := context.Repository.OuterPath
 	if len(strings.TrimSpace(outerpath)) == 0 {
@@ -42,8 +41,6 @@ func (context *SmbContext) DownloadDirectoryCifs() error {
 			outerpath = "."
 		}
 	}
-
-	outerpath = path.Join(prefix, outerpath)
 
 	context.MkdirIfNotExists(outerpath)
 
