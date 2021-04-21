@@ -142,13 +142,10 @@ func (svc *JobsService) requestRepoDownload(payload string) (interface{}, error)
 					info := strings.ReplaceAll(text, "\r", "") // First normalize the text by removing all \r
 					parts := strings.Split(info, "\n")
 					for i := 0; i < len(parts)-1; i += 2 {
-						job.Progress.CurrentPath = fmt.Sprintf("%s %s", strings.Split(parts[i], ":")[2], parts[i+1])
 						if runtime.GOOS == "windows" {
-							// svc.LogInfection(strings.Split(parts[i], ":")[2], parts[i+1])
-							// fmt.Println(strings.Split(parts[i], ":")[2], parts[i+1])
+							job.Progress.CurrentPath = fmt.Sprintf("%s %s", strings.Split(parts[i], ":")[2], parts[i+1])
 						} else {
-							// svc.LogInfection(strings.Split(parts[i], ":")[1], parts[i+1])
-							// fmt.Println(strings.Split(parts[i], ":")[2], parts[i+1])
+							job.Progress.CurrentPath = parts[i]
 						}
 					}
 
