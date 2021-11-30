@@ -24,4 +24,8 @@ func RegisterAuthRoutes(r *gin.Engine, authMiddleware *jwt.GinJWTMiddleware) {
 		db.DB.Create(&user)
 		c.JSON(http.StatusOK, gin.H{"data": user})
 	})
+
+	r.GET("/api/auth/verify", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"status": "OK"})
+	})
 }

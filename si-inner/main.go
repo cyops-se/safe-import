@@ -33,5 +33,5 @@ func main() {
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	<-c
 
-	broker.LogGeneric("si-inner", "info", "Got request to exit")
+	broker.LogInfo("si-inner", "Got request to exit")
 }

@@ -210,7 +210,7 @@ func (context *HttpContext) downloadFileHttp(f *MissingFile) error {
 	localfile := path.Join(outerpath, f.Fullname)
 	context.MkdirIfNotExists(path.Dir(localfile))
 
-	// fmt.Println("Storing file at:", localfile)
+	log.Printf("Storing file at: %s, (outerpath: %s)", localfile, outerpath)
 	out, err := os.Create(localfile)
 	if err != nil {
 		// fmt.Println("downloadFileHttp os.Create ERROR:", err)

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -33,6 +34,7 @@ func (svc *InnerHttpService) Initialize(broker *usvc.UsvcBroker) {
 	svc.RegisterMethod("byfieldname", svc.byFieldName)
 	svc.RegisterMethod("update", svc.update)
 	svc.RegisterMethod("prune", svc.prune)
+	svc.RegisterMethod("delete", svc.delete)
 
 	proxySvc = usvc.CreateStub(broker, "proxy", "si-gatekeeper", 1)
 
@@ -63,6 +65,7 @@ func (svc *InnerHttpService) startHTTPSServer(port int) {
 		TLSConfig: new(tls.Config),
 	}
 	s.TLSConfig.GetCertificate = common.GetCertificateFunc
+	s.TLSConfig.MaxVersion = tls.VersionTLS12
 
 	svc.LogGeneric("info", "Starting HTTPS server at port :%d", port)
 	err := s.ListenAndServeTLS("", "")
@@ -101,13 +104,13 @@ func (svc *InnerHttpService) processHttp(w http.ResponseWriter, r *http.Request,
 		Method: r.Method, URL: urlstring, MatchURL: regexp.QuoteMeta(urlstring), LastSeen: time.Now().UTC()}
 
 	u, _ := url.Parse(msg.URL)
-	// fmt.Println("Processing URL:", msg.URL)
+	svc.LogGeneric("info", "inner: Processing URL: %s", msg.URL)
 
 	// See if the URL matches one in the lists (white, black, grey)
 	if match := svc.matchURL(u, "white"); match != nil {
 		if match.Allowed {
-			svc.LogGeneric("inner", "WHITE URL ALLOWED: %s, from %s", msg.URL, msg.FromIP)
-			request := &gtypes.HttpDownloadRequest{URL: msg.URL, Method: r.Method, Headers: nil, Body: ""}
+			svc.LogGeneric("info", "inner: WHITE URL ALLOWED: %s, from %s (scan: %v)", msg.URL, msg.FromIP, match.NoScan)
+			request := &gtypes.HttpDownloadRequest{URL: msg.URL, Method: r.Method, Headers: nil, Body: "", NoScan: match.NoScan}
 
 			// Add headers
 			for n, v := range r.Header {
@@ -122,12 +125,12 @@ func (svc *InnerHttpService) processHttp(w http.ResponseWriter, r *http.Request,
 
 			if response, err := proxySvc.RequestMessage("httpget", request); err == nil {
 				if len(response.Payload) <= 0 {
-					svc.LogError("Failed to download file via proxy", fmt.Errorf("Response payload from proxy download request is empty"))
+					svc.LogError("inner: Failed to download file via proxy", fmt.Errorf("Response payload from proxy download request is empty, response %#v", response))
 				}
 
 				var dr gtypes.HttpDownloadResponse
 				if err := json.Unmarshal([]byte(response.Payload), &dr); err != nil {
-					svc.LogGeneric("error", "Marshalling proxy response to JSON failed: %#v", err)
+					svc.LogError("inner: Marshalling proxy response to JSON failed: %#v", err)
 				}
 
 				for _, v := range dr.Headers {
@@ -141,21 +144,21 @@ func (svc *InnerHttpService) processHttp(w http.ResponseWriter, r *http.Request,
 					defer file.Close()
 					io.Copy(w, file)
 				} else {
-					svc.LogError("Failed to open file from si-outer", err)
+					svc.LogError("inner: Failed to open file from si-outer", err)
 				}
 			} else {
-				svc.LogError("Failed to request job from proxy", err)
+				svc.LogError("inner: Failed to request job from proxy", err)
 			}
 		} else {
-			svc.LogGeneric("inner", "WHITE URL BLOCKED: %s, from %s", msg.URL, msg.FromIP)
+			svc.LogGeneric("info", "inner: WHITE URL BLOCKED: %s, from %s", msg.URL, msg.FromIP)
 		}
 	} else if match := svc.matchURL(u, "black"); match != nil {
-		svc.LogGeneric("alert", "BLACK URL ALERT: %s, from %s", msg.URL, msg.FromIP)
+		svc.LogGeneric("alert", "inner: BLACK URL ALERT: %s, from %s", msg.URL, msg.FromIP)
 	} else if match := svc.checkGrey(u); match == nil {
 		msg.Class = "grey"
 		msg.Count = 1
 		common.DB.Create(msg)
-		svc.LogGeneric("info", "GREY URL ADDED: %s, from %s", msg.URL, msg.FromIP)
+		svc.LogGeneric("info", "inner: GREY URL ADDED: %s, from %s", msg.URL, msg.FromIP)
 	}
 }
 
@@ -236,10 +239,10 @@ func (svc *InnerHttpService) update(payload string) (interface{}, error) {
 }
 
 func (svc *InnerHttpService) prune(payload string) (interface{}, error) {
-	var greyitems, whiteitems, blackitems []types.HttpRequest
+	var allitems, whiteitems, blackitems []types.HttpRequest
 
 	// Get all lists
-	if result := common.DB.Find(&greyitems, "class = 'grey'"); result.Error != nil {
+	if result := common.DB.Find(&allitems); result.Error != nil {
 		svc.LogGeneric("error", "Failed to query database, error: %#v", result.Error)
 		return nil, result.Error
 	}
@@ -255,27 +258,48 @@ func (svc *InnerHttpService) prune(payload string) (interface{}, error) {
 	// Pruning entries means removing all entries from the grey list that
 	// matches a MatchURL regexp field of a white or black entry.
 	for _, wv := range whiteitems {
-		for _, gv := range greyitems {
-			re, _ := regexp.Compile(wv.MatchURL)
-			if re.MatchString(gv.URL) {
-				if result := common.DB.Delete(&gv); result.Error != nil {
-					svc.LogGeneric("error", "Failed to delete item from database, error: %#v", result.Error)
-					return nil, result.Error
+		for _, gv := range allitems {
+			if wv.ID != gv.ID {
+				re, _ := regexp.Compile(wv.MatchURL)
+				if re.MatchString(gv.URL) {
+					log.Printf("PRUNE: deleting %s from %s list", gv.URL, gv.Class)
+					if result := common.DB.Delete(&gv); result.Error != nil {
+						svc.LogGeneric("error", "Failed to delete item from database, error: %#v", result.Error)
+						return nil, result.Error
+					}
 				}
 			}
 		}
 	}
 
 	for _, bv := range blackitems {
-		for _, gv := range greyitems {
-			re, _ := regexp.Compile(bv.MatchURL)
-			if re.MatchString(gv.URL) {
-				if result := common.DB.Delete(&gv); result.Error != nil {
-					svc.LogGeneric("error", "Failed to delete item from database, error: %#v", result.Error)
-					return nil, result.Error
+		for _, gv := range allitems {
+			if bv.ID != gv.ID {
+				re, _ := regexp.Compile(bv.MatchURL)
+				if re.MatchString(gv.URL) {
+					log.Printf("PRUNE: deleting %s from %s list", gv.URL, gv.Class)
+					if result := common.DB.Delete(&gv); result.Error != nil {
+						svc.LogGeneric("error", "Failed to delete item from database, error: %#v", result.Error)
+						return nil, result.Error
+					}
 				}
 			}
 		}
+	}
+
+	return nil, nil
+}
+
+func (svc *InnerHttpService) delete(payload string) (interface{}, error) {
+	var id string
+	if err := json.Unmarshal([]byte(payload), &id); err != nil {
+		svc.LogGeneric("error", "Marshalling request to JSON failed: %#v", err)
+		return nil, err
+	}
+
+	if result := common.DB.Delete(&types.HttpRequest{}, id); result.Error != nil {
+		svc.LogGeneric("error", "Failed to query database, error: %#v", result.Error)
+		return nil, result.Error
 	}
 
 	return nil, nil

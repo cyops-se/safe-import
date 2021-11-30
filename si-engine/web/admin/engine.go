@@ -2,8 +2,11 @@ package admin
 
 import (
 	"container/list"
+	"embed"
 	"encoding/json"
+	"io/fs"
 	"log"
+	"net/http"
 
 	jwt "github.com/appleboy/gin-jwt/v2"
 	db "github.com/cyops-se/safe-import/si-engine/web/admin/db"
@@ -15,15 +18,26 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+//go:embed static/index.html
+var admin string
+
+//go:embed static/*
+var static embed.FS
+
 func Run(broker *usvc.UsvcBroker) {
 	db.ConnectDatabase()
+
+	// http.FS can be used to create a http Filesystem
+	subFS2, _ := fs.Sub(static, "static")
+	var staticFS = http.FS(subFS2)
 
 	// fmt.Println("STARTING ADMIN WEB")
 	Log("info", "STARTING ADMIN WEB", "")
 	connections := list.New()
 
 	r := gin.Default()
-	r.Static("/ui", "./dist")
+	r.StaticFS("/ui", staticFS)
+	// r.Static("/ui", "./dist")
 
 	authMiddleware, _ := jwt.New(JWT)
 	authMiddleware.MiddlewareInit()

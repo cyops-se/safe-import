@@ -91,27 +91,43 @@ func (svc *ProxyService) httpGet(payload string) (interface{}, error) {
 		return nil, err
 	}
 
-	// fmt.Println("Processing request:", request)
+	// log.Println("Processing request:", request)
 
 	jobrequest := otypes.WaitRequest{URL: request.URL, Method: request.Method, Body: request.Body}
 	for _, v := range request.Headers {
 		jobrequest.Headers = append(jobrequest.Headers, otypes.NameValue{Name: v.Name, Value: v.Value})
 	}
 
+	svc.PublishString("file.download.start", request.URL)
 	if response, err := jobsSvc.RequestMessage("requesturlwait", jobrequest); err == nil {
 		var r otypes.WaitResponse
 		if err := json.Unmarshal([]byte(response.Payload), &r); err != nil {
 			svc.LogGeneric("error", "Marshalling response JSON payload to response failed: %#v, %s", err, response.Payload)
+			svc.PublishString("file.download.fail", request.URL)
 			return nil, err
 		}
 
-		// fmt.Println("RESPONSE:", r)
-
+		svc.PublishString("file.download.success", request.URL)
 		if r.Success {
-			if err, exitcode, infos := common.Scan(r.Filename); err != nil {
-				// fmt.Println("SCAN failed", err, exitcode, infos)
-				svc.LogError(fmt.Sprintf("SCAN failed (exitcode: %d, infos: %#v)", exitcode, infos), err)
-				return nil, err
+			if request.NoScan == false {
+				svc.PublishString("file.download.scan.start", request.URL)
+				if err, exitcode, infos := common.Scan(r.Filename); err != nil {
+					if exitcode == 1 {
+						for _, info := range infos {
+							err = fmt.Errorf("VIRUS: %s", info.VirusName)
+							svc.LogInfection(info.Filename, "VIRUS: %s", info.VirusName)
+							svc.PublishEventMessage("proxy.infection", info)
+							svc.PublishString("file.download.scan.fail", request.URL)
+						}
+					} else {
+						svc.LogError(fmt.Sprintf("SCAN failed (exitcode: %d)", exitcode), err)
+						svc.PublishString("file.download.scan.fail", request.URL)
+					}
+
+					return nil, err
+				}
+
+				svc.PublishString("file.download.scan.success", request.URL)
 			}
 
 			wd, _ := os.Getwd()
@@ -122,9 +138,13 @@ func (svc *ProxyService) httpGet(payload string) (interface{}, error) {
 			os.MkdirAll(folder, os.ModeDir)
 			os.Remove(innerpath)
 
+			svc.PublishString("file.download.link.start", request.URL)
 			if err := os.Symlink(oldname, innerpath); err != nil {
+				svc.PublishString("file.download.link.fail", request.URL)
 				return nil, err
 			}
+
+			svc.PublishString("file.download.link.success", request.URL)
 
 			msg := types.HttpDownloadResponse{URL: request.URL, Filename: innerpath}
 			for _, v := range r.Headers {

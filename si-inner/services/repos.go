@@ -174,18 +174,18 @@ func (svc *RepositoryService) deletebyid(payload string) (interface{}, error) {
 }
 
 func (svc *RepositoryService) eventHandler(m *nats.Msg) {
-	var event outertypes.Progress
+	var event outertypes.Job
 	if err := json.Unmarshal(m.Data, &event); err != nil {
 		log.Println("ERROR: Failed to unmarshal log entry:", string(m.Data), err)
 		return
 	}
 
-	// fmt.Println("EVENT", event)
+	log.Println("EVENT", event)
 
 	// Find the repo
 	var repo types.Repository
-	if result := common.DB.First(&repo, event.ID); result.Error != nil {
-		svc.LogGeneric("error", "Could not find repo from event, error: %#v", result.Error)
+	if result := common.DB.First(&repo, event.Progress.ID); result.Error != nil {
+		svc.LogGeneric("error", "Could not find repo from event, event: %#v, error: %#v", event, result.Error)
 		return
 	}
 

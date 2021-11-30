@@ -17,6 +17,12 @@ type Job struct {
 	Callback func(job *Job) `gorm:"-" json:"-"`
 }
 
+type HttpURL struct {
+	gorm.Model
+	URL      string `json:"url"`      // https://acme.com/baseline/update/1/collection.tar.gz/md5 ->
+	Filename string `json:"filename"` // /acme.com/baseline_update_1_collection.tar.gz_md5
+}
+
 type RepositoryX struct {
 	gorm.Model
 	Name        string    `json:"name"`

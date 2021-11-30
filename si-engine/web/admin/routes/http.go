@@ -5,7 +5,7 @@ import (
 	"strconv"
 
 	"github.com/cyops-se/safe-import/si-inner/types"
-	innertypes "github.com/cyops-se/safe-import/si-inner/types"
+	// innertypes "github.com/cyops-se/safe-import/si-inner/types"
 	"github.com/cyops-se/safe-import/usvc"
 	"github.com/gin-gonic/gin"
 )
@@ -21,6 +21,7 @@ func RegisterHttpRoutes(auth *gin.RouterGroup, broker *usvc.UsvcBroker) {
 	auth.PUT("/http/:id", UpdateHttp)
 	auth.PATCH("/http/:id", UpdateHttp)
 
+	auth.DELETE("/http/:id", DeleteHttp)
 	auth.DELETE("/http", DeleteAllHttp)
 	httpSvc = usvc.CreateStub(broker, "http", "si-inner", 1)
 }
@@ -32,7 +33,7 @@ func GetAllHttp(c *gin.Context) {
 
 func GetHttpByID(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Params.ByName("id"))
-	args := &innertypes.ByIdRequest{ID: uint(id)}
+	args := &types.ByIdRequest{ID: uint(id)}
 	r, _ := httpSvc.RequestMessage("byid", &args)
 	c.JSON(http.StatusOK, gin.H{"item": r})
 }
@@ -40,7 +41,7 @@ func GetHttpByID(c *gin.Context) {
 func GetHttpByField(c *gin.Context) {
 	f := c.Params.ByName("name")
 	v := c.Params.ByName("value")
-	args := &innertypes.ByNameRequest{Name: f, Value: v}
+	args := &types.ByNameRequest{Name: f, Value: v}
 	r, _ := httpSvc.RequestMessage("byfieldname", args)
 	c.JSON(http.StatusOK, gin.H{"items": r})
 }
@@ -69,6 +70,17 @@ func PruneHttp(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"result": r})
+}
+
+func DeleteHttp(c *gin.Context) {
+	id := c.Params.ByName("id")
+	r, err := httpSvc.RequestMessage("delete", id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "'delete' request to si-inner failed", "error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"status": "OK", "result": r})
 }
 
 func DeleteAllHttp(c *gin.Context) {

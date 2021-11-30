@@ -21,6 +21,7 @@ func RegisterDnsRoutes(auth *gin.RouterGroup, broker *usvc.UsvcBroker) {
 	auth.PUT("/dns/:id", UpdateDns)
 	auth.PATCH("/dns/:id", UpdateDns)
 
+	auth.DELETE("/dns/:id", DeleteDns)
 	auth.DELETE("/dns", DeleteAllDns)
 	dnsSvc = usvc.CreateStub(broker, "dns", "si-inner", 1)
 }
@@ -79,7 +80,18 @@ func UpdateDns(c *gin.Context) {
 func PruneDns(c *gin.Context) {
 	r, err := dnsSvc.Request("prune")
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"message": "'prune' request to si-inner failed", "error": err})
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "'prune' request to si-inner failed", "error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"result": r})
+}
+
+func DeleteDns(c *gin.Context) {
+	id := c.Params.ByName("id")
+	r, err := dnsSvc.RequestMessage("delete", id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "'delete' request to si-inner failed", "error": err.Error()})
 		return
 	}
 

@@ -19,6 +19,7 @@ type HttpDownloadRequest struct {
 	Method  string      `json:"method"`
 	Headers []NameValue `json:"headers"`
 	Body    string      `json:"body"`
+	NoScan  bool        `json:"noscan"`
 }
 
 type HttpDownloadResponse struct {

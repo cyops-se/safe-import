@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"log"
 	"net/http"
 
 	db "github.com/cyops-se/safe-import/si-engine/web/admin/db"
@@ -15,6 +16,7 @@ func RegisterUserRoutes(auth *gin.RouterGroup) {
 	auth.POST("/user", NewUser)
 	auth.PUT("/user/:id", UpdateUser)
 	auth.PATCH("/user/:id", UpdateUser)
+	auth.DELETE("/user/:id", DeleteUser)
 }
 
 func GetAllUsers(c *gin.Context) {
@@ -55,10 +57,10 @@ func GetUserByField(c *gin.Context) {
 }
 
 type userdata struct {
-	ID       string `form:"id" json:"id" binding:"required"`
+	ID       uint   `form:"id" json:"ID" binding:"required"`
 	Fullname string `form:"fullname" json:"fullname" binding:"required"`
 	Username string `form:"email" json:"email" binding:"required"`
-	Password string `form:"password" json:"password" binding:"required"`
+	Password string `form:"password" json:"password"`
 }
 
 func NewUser(c *gin.Context) {
@@ -74,18 +76,39 @@ func NewUser(c *gin.Context) {
 }
 
 func UpdateUser(c *gin.Context) {
-	var data userdata
+	var user, data db.User
+
 	if err := c.ShouldBind(&data); err != nil {
-		c.JSON(http.StatusNotModified, gin.H{"error": err})
+		log.Printf("UpdateUser: bind() failed %s", err.Error())
+		c.JSON(http.StatusNotModified, gin.H{"status": "error", "error": err.Error()})
 		return
 	}
 
-	var user db.User
-	if err := db.DB.First(&user, "ID = ?", data.ID); err != nil {
-		c.JSON(http.StatusNotModified, gin.H{"error": err})
+	if err := db.DB.First(&user, data.ID).Error; err != nil {
+		log.Printf("UpdateUser: first() failed %s", err.Error())
+		c.JSON(http.StatusNotModified, gin.H{"status": "error", "error": err.Error()})
 		return
 	}
 
-	db.DB.Save(&user)
-	c.JSON(http.StatusOK, gin.H{"data": user})
+	user.FullName = data.FullName
+	user.UserName = data.UserName
+
+	result := db.DB.Save(&user)
+	if result.Error != nil {
+		log.Printf("UpdateUser: save() failed %s", result.Error.Error())
+		c.JSON(http.StatusNotModified, gin.H{"status": "error", "error": result.Error.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": user, "rows": result.RowsAffected})
+}
+
+func DeleteUser(c *gin.Context) {
+	id := c.Params.ByName("id")
+	result := db.DB.Delete(&db.User{}, id)
+	if result.Error != nil {
+		c.JSON(http.StatusNotModified, gin.H{"status": "error", "error": result.Error.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"status": "OK", "rows": result})
 }

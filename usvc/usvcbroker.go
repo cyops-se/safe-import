@@ -211,7 +211,7 @@ func (broker *UsvcBroker) DispatchMessage(subject string, request *types.Request
 
 	result, err := svc.DispatchLocalInvocation(method, request.Payload)
 	if err != nil {
-		broker.LogError("BROKER", "UsvcBroker received error from local service dispatch:", err)
+		// broker.LogError("BROKER", "UsvcBroker received error from local service dispatch:", err)
 		broker.err = err
 	}
 
@@ -332,7 +332,7 @@ func (broker *UsvcBroker) microServiceV1Handler(msg *nats.Msg) {
 			}
 		}
 	} else {
-		broker.LogError("BROKER", "Either a broker-internal error, a microservice failure or a bad client request happened in "+dispatchname+" (request dispatch)", err)
+		// broker.LogError("BROKER", "Either a broker-internal error, a microservice failure or a bad client request happened in "+dispatchname+" (request dispatch)", err)
 		response.Header.Status.ResultCode = 99
 		response.Header.Status.ResultMessage = err.Error()
 	}

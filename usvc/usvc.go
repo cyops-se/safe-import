@@ -144,6 +144,10 @@ func (svc *Usvc) Publish(subject string, msg interface{}) error {
 	return svc.broker.PublishMessage(subject, &msg)
 }
 
+func (svc *Usvc) PublishString(subject string, msg string) error {
+	return svc.broker.PublishString(subject, msg)
+}
+
 func (svc *Usvc) PublishData(name string, msg interface{}) error {
 	subject := fmt.Sprintf("data.%s.%s", svc.Fullname(), name)
 	return svc.broker.PublishMessage(subject, &msg)
