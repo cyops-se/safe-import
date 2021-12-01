@@ -11,7 +11,7 @@ const ApiService = {
     Vue.use(VueAxios, axios)
 
     if (process.env.NODE_ENV === 'production') {
-      Vue.axios.defaults.baseURL = 'http://localhost:7499'
+      // Vue.axios.defaults.baseURL = 'http://localhost:7499'
     } else {
       Vue.axios.defaults.baseURL = 'http://localhost:8080'
     }
@@ -25,7 +25,7 @@ const ApiService = {
   },
 
   query (resource, params) {
-    resource = 'api/' + resource
+    resource = '/api/' + resource
     return Vue.axios.get(resource, params).catch(error => {
       throw new Error(`[KT] ApiService ${error}`)
     })
@@ -39,7 +39,7 @@ const ApiService = {
    */
   get (resource) {
     ApiService.setHeader()
-    resource = 'api/' + resource
+    resource = '/api/' + resource
     return Vue.axios.get(`${resource}`).catch(error => {
       throw new Error(`[KT] ApiService ${error}`)
     })
@@ -53,7 +53,7 @@ const ApiService = {
    */
   post (resource, params) {
     ApiService.setHeader()
-    resource = 'api/' + resource
+    resource = '/api/' + resource
     return Vue.axios.post(`${resource}`, params)
   },
 
@@ -65,7 +65,7 @@ const ApiService = {
    */
   upload (resource, files) {
     ApiService.setHeader()
-    resource = 'api/' + resource
+    resource = '/api/' + resource
     var formData = new FormData()
     for (var i = 0; i < files.length; i++) { formData.append('file', files[i]) }
     return Vue.axios.post(`${resource}`, formData, {
@@ -84,7 +84,7 @@ const ApiService = {
    */
   update (resource, slug, params) {
     ApiService.setHeader()
-    resource = 'api/' + resource
+    resource = '/api/' + resource
     return Vue.axios.put(`${resource}/${slug}`, params)
   },
 
@@ -96,7 +96,7 @@ const ApiService = {
    */
   put (resource, params) {
     ApiService.setHeader()
-    resource = 'api/' + resource
+    resource = '/api/' + resource
     return Vue.axios.put(`${resource}`, params)
   },
 
@@ -107,7 +107,7 @@ const ApiService = {
    */
   delete (resource) {
     ApiService.setHeader()
-    resource = 'api/' + resource
+    resource = '/api/' + resource
     return Vue.axios.delete(resource)
     // .catch(error => {
     //   throw new Error(`[RWV] ApiService ${error}`)
