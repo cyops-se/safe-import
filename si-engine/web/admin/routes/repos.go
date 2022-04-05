@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"log"
 	"net/http"
 	"strconv"
 
@@ -34,11 +35,11 @@ func RegisterReposRoutes(auth *gin.RouterGroup, broker *usvc.UsvcBroker) {
 func GetAllRepo(c *gin.Context) {
 	r, err := repoSvc.Request("allitems")
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"items": r, "error": err})
+	c.JSON(http.StatusOK, gin.H{"items": r})
 }
 
 func GetDownloadRepo(c *gin.Context) {
@@ -46,11 +47,11 @@ func GetDownloadRepo(c *gin.Context) {
 	msg := &innertypes.ByIdRequest{ID: uint(id)}
 	r, err := jobsSvc.RequestMessage("requestrepodownload", msg)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"data": r, "error": err})
+	c.JSON(http.StatusOK, gin.H{"data": r})
 }
 
 func GetRepoByID(c *gin.Context) {
@@ -58,11 +59,11 @@ func GetRepoByID(c *gin.Context) {
 	msg := &innertypes.ByIdRequest{ID: uint(id)}
 	r, err := repoSvc.RequestMessage("byid", msg)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"data": r, "error": err})
+	c.JSON(http.StatusOK, gin.H{"data": r})
 }
 
 func GetRepoByField(c *gin.Context) {
@@ -72,59 +73,60 @@ func GetRepoByField(c *gin.Context) {
 func NewRepo(c *gin.Context) {
 	var item innertypes.Repository
 	if err := c.ShouldBind(&item); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
 	r, err := repoSvc.RequestMessage("create", item)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"data": r, "error": err})
+	c.JSON(http.StatusOK, gin.H{"data": r})
 }
 
 func ApproveRepo(c *gin.Context) {
 	var args innertypes.ApproveRequest
 	if err := c.ShouldBind(&args); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
 	r, err := repoSvc.RequestMessage("approve", args)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"data": r, "error": err})
+	c.JSON(http.StatusOK, gin.H{"data": r})
 }
 
 func UpdateRepo(c *gin.Context) {
 	var item innertypes.Repository
 	if err := c.ShouldBind(&item); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err})
+		log.Printf("UpdateRepo: Failed to bind PUT body: %s", err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
 	r, err := repoSvc.RequestMessage("update", item)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"data": r, "error": err})
+	c.JSON(http.StatusOK, gin.H{"data": r})
 }
 
 func DeleteAllRepos(c *gin.Context) {
 	r, err := repoSvc.Request("deleteall")
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"status": "OK", "result": r, "error": err})
+	c.JSON(http.StatusOK, gin.H{"status": "OK", "result": r})
 }
 
 func DeleteRepo(c *gin.Context) {
@@ -132,9 +134,9 @@ func DeleteRepo(c *gin.Context) {
 	msg := &innertypes.ByIdRequest{ID: uint(id)}
 	r, err := repoSvc.RequestMessage("deletebyid", msg)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"status": "OK", "result": r, "error": err})
+	c.JSON(http.StatusOK, gin.H{"status": "OK", "result": r})
 }

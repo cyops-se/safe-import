@@ -4,9 +4,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/cyops-se/safe-import/si-inner/common"
@@ -30,6 +32,7 @@ func (svc *InnerDnsService) Initialize(broker *usvc.UsvcBroker) {
 	svc.RegisterMethod("byfieldname", svc.byFieldName)
 	svc.RegisterMethod("update", svc.update)
 	svc.RegisterMethod("prune", svc.prune)
+	svc.RegisterMethod("delete", svc.delete)
 
 	// We don't use settings right now
 	if err := svc.LoadSettings(); err != nil {
@@ -61,7 +64,6 @@ func (svc *InnerDnsService) DNSServer() {
 }
 
 func (svc *InnerDnsService) parseQuery(m *dns.Msg, w dns.ResponseWriter) {
-
 	remoteaddr, _ := w.RemoteAddr().(*net.UDPAddr)
 	remoteip := remoteaddr.IP
 
@@ -71,21 +73,25 @@ func (svc *InnerDnsService) parseQuery(m *dns.Msg, w dns.ResponseWriter) {
 		return
 	}
 
-	svc.LogInfo(fmt.Sprintf("Using %s as IP address for DNS response", dnsip))
+	// svc.LogInfo(fmt.Sprintf("Using %s as IP address for DNS response", dnsip))
 
 	for _, q := range m.Question {
 		switch q.Qtype {
-		case dns.TypeA:
+		default:
+			m.Rcode = dns.RcodeNameError
+		case dns.TypeAAAA, dns.TypeA:
 			if dnsip != "" {
-				var rr, empty dns.RR
-				if rr, err = dns.NewRR(fmt.Sprintf("%s A %s", q.Name, dnsip)); err != nil {
-					// fmt.Println("DNS CRITICAL: failed to create A RR, err:", err)
-					return
-				}
-
-				if empty, err = dns.NewRR(fmt.Sprintf("%s IN A", q.Name)); err != nil {
-					// fmt.Println("DNS CRITICAL: failed to create EMPTY A RR, err:", err)
-					return
+				var rr dns.RR
+				if q.Qtype == dns.TypeA {
+					if rr, err = dns.NewRR(fmt.Sprintf("%s A %s", q.Name, dnsip)); err != nil {
+						m.Rcode = dns.RcodeNameError
+						return
+					}
+				} else {
+					if rr, err = dns.NewRR(fmt.Sprintf("%s AAAA ::ffff:%s", q.Name, dnsip)); err != nil {
+						m.Rcode = dns.RcodeNameError
+						return
+					}
 				}
 
 				// Send the URI over nats if used
@@ -95,22 +101,65 @@ func (svc *InnerDnsService) parseQuery(m *dns.Msg, w dns.ResponseWriter) {
 
 				if match := svc.matchQuery(q.Name, "white"); match != nil {
 					if match.Allowed {
-						svc.LogGeneric("inner", "WHITE DNS ALLOWED: %s, from %s", data.Query, data.FromIP)
+						svc.LogGeneric("info", "inner: WHITE DNS ALLOWED: %s, from %s", data.Query, data.FromIP)
 						m.Answer = append(m.Answer, rr)
 					} else {
-						svc.LogGeneric("inner", "WHITE DNS BLOCKED: %s, from %s", data.Query, data.FromIP)
-						m.Answer = append(m.Answer, empty)
+						svc.LogGeneric("info", "inner: WHITE DNS BLOCKED: %s, from %s", data.Query, data.FromIP)
 						m.Rcode = dns.RcodeNameError
 					}
 				} else if match := svc.matchQuery(q.Name, "black"); match != nil {
 					svc.LogGeneric("alert", "BLACK DNS ALERT: %s, from %s", data.Query, data.FromIP)
-					m.Answer = append(m.Answer, empty)
 					m.Rcode = dns.RcodeNameError
-				} else if match := svc.checkGrey(q.Name); match == nil {
-					m.Answer = append(m.Answer, rr)
-					data.Class = "grey"
-					data.Count = 1
-					common.DB.Create(data)
+				} else {
+					svc.LogGeneric("info", "inner: GREY DNS BLOCKED: %s, from %s", data.Query, data.FromIP)
+					m.Rcode = dns.RcodeNameError
+					if match := svc.checkGrey(q.Name); match == nil {
+						data.Class = "grey"
+						data.Count = 1
+						common.DB.Create(data)
+					}
+				}
+			}
+		case dns.TypeSRV: // Only supports HTTPS at the moment
+			if dnsip != "" {
+				var addrs []*net.SRV
+				name := strings.Replace(q.Name, "_https._tcp.", "", 1)
+				_, addrs, err = net.LookupSRV("https", "tcp", name)
+				if err != nil {
+					// svc.LogGeneric("error", "DNS ERROR: failed to lookup SRV record %s, err: %s", q.Name, err.Error())
+					m.Rcode = dns.RcodeNameError
+					return
+				}
+
+				var rr dns.RR
+				if rr, err = dns.NewRR(fmt.Sprintf("%s SRV %d %d %d %s", q.Name, addrs[0].Priority, addrs[0].Weight, addrs[0].Port, addrs[0].Target)); err != nil {
+					m.Rcode = dns.RcodeNameError
+					return
+				}
+
+				// Send the URI over nats if used
+				data := &types.DnsRequest{Time: time.Now().UTC(), FromIP: remoteip.String(), Query: q.Name,
+					MatchQuery: regexp.QuoteMeta(q.Name), LastSeen: time.Now().UTC()}
+
+				if match := svc.matchQuery(q.Name, "white"); match != nil {
+					if match.Allowed {
+						svc.LogGeneric("info", "inner: WHITE DNS ALLOWED: %s, from %s", data.Query, data.FromIP)
+						m.Answer = append(m.Answer, rr)
+					} else {
+						svc.LogGeneric("info", "inner: WHITE DNS BLOCKED: %s, from %s", data.Query, data.FromIP)
+						m.Rcode = dns.RcodeNameError
+					}
+				} else if match := svc.matchQuery(q.Name, "black"); match != nil {
+					svc.LogGeneric("alert", "inner: BLACK DNS ALERT: %s, from %s", data.Query, data.FromIP)
+					m.Rcode = dns.RcodeNameError
+				} else {
+					svc.LogGeneric("info", "inner: GREY DNS BLOCKED: %s, from %s", data.Query, data.FromIP)
+					m.Rcode = dns.RcodeNameError
+					if match := svc.checkGrey(q.Name); match == nil {
+						data.Class = "grey"
+						data.Count = 1
+						common.DB.Create(data)
+					}
 				}
 			}
 		}
@@ -168,6 +217,7 @@ func (svc *InnerDnsService) handleDnsRequest(w dns.ResponseWriter, r *dns.Msg) {
 func externalIP(remoteip net.IP) (string, error) {
 	ifaces, err := net.Interfaces()
 	if err != nil {
+		log.Printf("externalIP:net.Interfaces() failed, error: %s", err.Error())
 		return "", err
 	}
 
@@ -183,6 +233,7 @@ func externalIP(remoteip net.IP) (string, error) {
 
 		addrs, err := iface.Addrs()
 		if err != nil {
+			log.Printf("externalIP:iface.Addrs() failed, error: %s", err.Error())
 			return "", err
 		}
 
@@ -209,6 +260,7 @@ func externalIP(remoteip net.IP) (string, error) {
 			return ip.String(), nil
 		}
 	}
+
 	return "", errors.New("are you connected to the network?")
 }
 
@@ -293,6 +345,21 @@ func (svc *InnerDnsService) prune(payload string) (interface{}, error) {
 				}
 			}
 		}
+	}
+
+	return nil, nil
+}
+
+func (svc *InnerDnsService) delete(payload string) (interface{}, error) {
+	var id string
+	if err := json.Unmarshal([]byte(payload), &id); err != nil {
+		svc.LogGeneric("error", "Marshalling request to JSON failed: %#v", err)
+		return nil, err
+	}
+
+	if result := common.DB.Delete(&types.DnsRequest{}, id); result.Error != nil {
+		svc.LogGeneric("error", "Failed to query database, error: %#v", result.Error)
+		return nil, result.Error
 	}
 
 	return nil, nil

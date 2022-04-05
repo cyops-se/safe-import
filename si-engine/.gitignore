@@ -14,3 +14,7 @@
 # Dependency directories (remove the comment below to include it)
 # vendor/
 *.db
+*.db-journal
+
+# Vuetify webpack content changes at every build
+**/static/*

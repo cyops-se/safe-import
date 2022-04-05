@@ -3,6 +3,7 @@ package services
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"path"
 	"path/filepath"
@@ -34,6 +35,10 @@ func (svc *ProxyService) Initialize(broker *usvc.UsvcBroker) {
 	if err := svc.LoadSettings(); err != nil {
 		svc.SaveSettings() // Save default settings. Though we don't actually use the settings right now...
 	}
+
+	os.MkdirAll("/safe-import/outer", 0755)
+	os.MkdirAll("/safe-import/inner", 0755)
+	os.MkdirAll("/safe-import/quarantine", 0755)
 
 	svc.Executor = svc.execute
 	svc.SetTaskIdleTime(60 * 1) // every minute
@@ -91,27 +96,47 @@ func (svc *ProxyService) httpGet(payload string) (interface{}, error) {
 		return nil, err
 	}
 
-	// fmt.Println("Processing request:", request)
+	log.Println("Processing request:", request)
 
 	jobrequest := otypes.WaitRequest{URL: request.URL, Method: request.Method, Body: request.Body}
 	for _, v := range request.Headers {
 		jobrequest.Headers = append(jobrequest.Headers, otypes.NameValue{Name: v.Name, Value: v.Value})
 	}
 
+	svc.PublishString("file.download.start", request.URL)
 	if response, err := jobsSvc.RequestMessage("requesturlwait", jobrequest); err == nil {
 		var r otypes.WaitResponse
 		if err := json.Unmarshal([]byte(response.Payload), &r); err != nil {
 			svc.LogGeneric("error", "Marshalling response JSON payload to response failed: %#v, %s", err, response.Payload)
+			svc.PublishString("file.download.fail", request.URL)
 			return nil, err
 		}
 
-		// fmt.Println("RESPONSE:", r)
-
+		svc.PublishString("file.download.success", request.URL)
 		if r.Success {
-			if err, exitcode, infos := common.Scan(r.Filename); err != nil {
-				// fmt.Println("SCAN failed", err, exitcode, infos)
-				svc.LogError(fmt.Sprintf("SCAN failed (exitcode: %d, infos: %#v)", exitcode, infos), err)
-				return nil, err
+			if request.NoScan == false {
+				svc.PublishString("file.download.scan.start", request.URL)
+				if err, exitcode, infos := common.Scan(r.Filename); err != nil {
+					if exitcode == 1 {
+						for _, info := range infos {
+							err = fmt.Errorf("VIRUS: %s", info.VirusName)
+							svc.LogInfection(err.Error(), info.Filename)
+							svc.PublishEventMessage("proxy.infection", info)
+							svc.PublishString("file.download.scan.fail", request.URL)
+						}
+					} else {
+						svc.LogError(fmt.Sprintf("SCAN failed (exitcode: %d)", exitcode), err)
+						svc.PublishString("file.download.scan.fail", request.URL)
+						log.Printf("SCAN failed: infos:")
+						for _, info := range infos {
+							log.Printf("  %v", info)
+						}
+					}
+
+					return nil, err
+				}
+
+				svc.PublishString("file.download.scan.success", request.URL)
 			}
 
 			wd, _ := os.Getwd()
@@ -119,12 +144,16 @@ func (svc *ProxyService) httpGet(payload string) (interface{}, error) {
 			innerpath := strings.Replace(r.Filename, "outer", "inner", 1)
 
 			folder := path.Dir(innerpath)
-			os.MkdirAll(folder, os.ModeDir)
+			os.MkdirAll(folder, 0755)
 			os.Remove(innerpath)
 
+			svc.PublishString("file.download.link.start", request.URL)
 			if err := os.Symlink(oldname, innerpath); err != nil {
+				svc.PublishString("file.download.link.fail", request.URL)
 				return nil, err
 			}
+
+			svc.PublishString("file.download.link.success", request.URL)
 
 			msg := types.HttpDownloadResponse{URL: request.URL, Filename: innerpath}
 			for _, v := range r.Headers {

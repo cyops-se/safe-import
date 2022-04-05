@@ -74,7 +74,7 @@ func (broker *UsvcBroker) Log(fullname string, category string, title string) {
 	} else if category == "warning" {
 		fmt.Printf("%s\tWarning: %s\n", t, title)
 	} else {
-		fmt.Printf("%s\tTitle: %s\n", t, title)
+		fmt.Printf("%s\t%s: %s\n", t, category, title)
 	}
 
 	var metalog types.MetaLog
@@ -211,7 +211,7 @@ func (broker *UsvcBroker) DispatchMessage(subject string, request *types.Request
 
 	result, err := svc.DispatchLocalInvocation(method, request.Payload)
 	if err != nil {
-		broker.LogError("BROKER", "UsvcBroker received error from local service dispatch:", err)
+		// broker.LogError("BROKER", "UsvcBroker received error from local service dispatch:", err)
 		broker.err = err
 	}
 
@@ -253,7 +253,7 @@ func (broker *UsvcBroker) PublishMessage(subject string, message *interface{}) e
 
 func (broker *UsvcBroker) RequestMessage(subject string, message interface{}) (*types.Response, error) {
 	if broker.CheckConnection() == nil {
-		payload, err := json.Marshal(message)
+		payload, _ := json.Marshal(message)
 		request := &types.Request{Payload: string(payload)}
 
 		data, _ := json.Marshal(request)
@@ -262,7 +262,7 @@ func (broker *UsvcBroker) RequestMessage(subject string, message interface{}) (*
 			response := &types.Response{}
 			json.Unmarshal(rmsg.Data, response)
 			if response.Header.Status.ResultCode > 0 {
-				err = fmt.Errorf("Remote service reported an error: %d %s", response.Header.Status.ResultCode, response.Header.Status.ResultMessage)
+				err = fmt.Errorf("remote service reported an error: %d %s", response.Header.Status.ResultCode, response.Header.Status.ResultMessage)
 			}
 			return response, err
 		}
@@ -283,7 +283,7 @@ func (broker *UsvcBroker) Request(subject string) (*types.Response, error) {
 			response := &types.Response{}
 			json.Unmarshal(rmsg.Data, response)
 			if response.Header.Status.ResultCode > 0 {
-				err = fmt.Errorf("Remote service reported an error: %d %s", response.Header.Status.ResultCode, response.Header.Status.ResultMessage)
+				err = fmt.Errorf("remote service reported an error: %d %s", response.Header.Status.ResultCode, response.Header.Status.ResultMessage)
 			}
 			return response, err
 		}
@@ -332,7 +332,7 @@ func (broker *UsvcBroker) microServiceV1Handler(msg *nats.Msg) {
 			}
 		}
 	} else {
-		broker.LogError("BROKER", "Either a broker-internal error, a microservice failure or a bad client request happened in "+dispatchname+" (request dispatch)", err)
+		// broker.LogError("BROKER", "Either a broker-internal error, a microservice failure or a bad client request happened in "+dispatchname+" (request dispatch)", err)
 		response.Header.Status.ResultCode = 99
 		response.Header.Status.ResultMessage = err.Error()
 	}
@@ -353,6 +353,18 @@ func (broker *UsvcBroker) microServiceStateHandler(msg *nats.Msg) {
 			broker.servicestates[heartbeat.Name] = &types.UsvcState{Name: heartbeat.Name, GitVersion: heartbeat.GitVersion}
 			broker.servicestates[heartbeat.Name].LastSeen = time.Now().UTC()
 			broker.servicestates[heartbeat.Name].Status = types.ServiceState_RUNNING
+		}
+	}
+
+	// Prune stale entries every 5 seconds (and remove those who's heartbeat is older than 5 secs)
+	if time.Since(broker.lastcheck) > time.Second*5 {
+		broker.lastcheck = time.Now()
+
+		for _, entry := range broker.servicestates {
+			if time.Since(entry.LastSeen) > time.Second*5 {
+				delete(broker.servicestates, entry.Name)
+				broker.PublishString("system.service.stopped", entry.Name)
+			}
 		}
 	}
 }

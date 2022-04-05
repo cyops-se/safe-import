@@ -22,13 +22,13 @@ type User struct {
 }
 
 type UserData struct {
-	ID       uint   `form:"id" json:"id" binding:"required" gorm:"primary_key"`
+	ID       uint   `form:"id" json:"ID" binding:"required" gorm:"primary_key"`
 	UserName string `form:"email" json:"email" binding:"required"`
 	FullName string `form:"fullname" json:"fullname" binding:"required"`
 }
 
 type UserPasswordUpdate struct {
-	ID       uint   `form:"id" json:"id" binding:"required" gorm:"primary_key"`
+	ID       uint   `form:"id" json:"ID" binding:"required" gorm:"primary_key"`
 	Password string `form:"password" json:"password" binding:"required"`
 }
 

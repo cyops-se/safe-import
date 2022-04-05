@@ -9,6 +9,7 @@ import (
 type ListInfo struct {
 	Class   string `json:"class"`
 	Allowed bool   `json:"allowed"`
+	NoScan  bool   `json:"noscan"`
 }
 
 type HttpRequest struct {

@@ -1,6 +1,8 @@
 package main
 
 import (
+	"flag"
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -11,7 +13,21 @@ import (
 	"github.com/cyops-se/safe-import/usvc"
 )
 
+var GitVersion string
+var GitCommit string
+
 func main() {
+	version := flag.Bool("v", false, "Prints the commit hash and exits")
+	flag.Parse()
+
+	usvc.GitVersion = GitVersion
+	usvc.GitCommit = GitCommit
+
+	if *version {
+		fmt.Printf("si-gatekeeper version %s, commit %s\n", usvc.GitVersion, usvc.GitCommit)
+		return
+	}
+
 	common.ConnectDatabase()
 	system.Init()
 

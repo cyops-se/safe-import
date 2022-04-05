@@ -6,11 +6,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
 	"path"
-	"path/filepath"
 	"runtime"
 	"strings"
 
@@ -90,12 +90,12 @@ func (svc *JobsService) requestRepoDownload(payload string) (interface{}, error)
 		// fmt.Printf("Publishing progress: %v\n", job.Progress)
 		if job.Progress.Error == nil {
 			if job.Command == 0 {
-				svc.PublishData("event.jobs.progress", job.Progress)
+				svc.PublishData("event.jobs.progress", job)
 			} else {
-				svc.PublishData("event.jobs.stopping", job.Progress)
+				svc.PublishData("event.jobs.stopping", job)
 			}
 		} else {
-			svc.PublishData("event.jobs.failure", job.Progress)
+			svc.PublishData("event.jobs.failure", job)
 		}
 	}
 
@@ -112,6 +112,7 @@ func (svc *JobsService) requestRepoDownload(payload string) (interface{}, error)
 
 		repo.Available = false
 		job.Progress.ErrorMessage = "DOWNLOADING"
+		svc.PublishData("event.jobs.downloading", job)
 
 		if strings.HasPrefix(repo.URL, "http") {
 			context := rippers.CreateHttpContext(job, repo)
@@ -126,11 +127,11 @@ func (svc *JobsService) requestRepoDownload(payload string) (interface{}, error)
 		}
 
 		if job.Progress.Error == nil {
-			svc.PublishData("event.jobs.scanning", job.Progress)
+			svc.PublishData("event.jobs.scanning", job)
 			svc.LogInfo(fmt.Sprintf("Scanning: %s", repo.OuterPath))
 			job.Progress.ErrorMessage = "SCANNING"
 			if err, exitcode, out := system.Run(system.CMD_CLAMSCAN, repo.OuterPath); err != nil {
-				// fmt.Printf("CLAM exited with status code: %d, out: %s", exitcode, string(out))
+				log.Printf("CLAM exited with status code: %d, out: %s", exitcode, string(out))
 
 				job.Progress.Error = err
 				job.Progress.ErrorMessage = err.Error()
@@ -150,13 +151,13 @@ func (svc *JobsService) requestRepoDownload(payload string) (interface{}, error)
 					}
 
 					job.Progress.ErrorMessage = "INFECTED"
-					svc.PublishData("event.jobs.infected", job.Progress)
+					svc.PublishData("event.jobs.infected", job)
 					svc.LogError(fmt.Sprintf("Repository %d failed", repo.ID), fmt.Errorf("INFECTED data is not available at inner side, cause: %s", text))
 					svc.LogInfection(fmt.Sprintf("Repository %d has INFECTED data", repo.ID), text)
 				} else if exitcode == 2 {
 					job.Progress.ErrorMessage = "FAILED"
-					svc.PublishData("event.jobs.failed", job.Progress)
-					svc.LogError(fmt.Sprintf("Repository %d failed", repo.ID), fmt.Errorf("Scan failed. Data is not available at inner side, cause: %s", text))
+					svc.PublishData("event.jobs.failed", job)
+					svc.LogError(fmt.Sprintf("Repository %d failed", repo.ID), fmt.Errorf("Scan failed. Data is not available at inner side, cause: %s, %s", text, err.Error()))
 				}
 
 				job.Progress.Error = err
@@ -166,24 +167,25 @@ func (svc *JobsService) requestRepoDownload(payload string) (interface{}, error)
 
 		// Report job completed if there are no errors and link destination path to 'inner'
 		if job.Progress.Error == nil {
-			svc.PublishData("event.jobs.completed", job.Progress)
+			svc.PublishData("event.jobs.completed", job)
 			folder := path.Dir(repo.InnerPath)
 			os.MkdirAll(folder, os.ModeDir)
-			wd, _ := os.Getwd()
-			if err := os.Symlink(filepath.VolumeName(wd)+repo.OuterPath, repo.InnerPath); err == nil {
+			// wd, _ := os.Getwd()
+			log.Printf("linking %s with %s", repo.OuterPath, repo.InnerPath)
+			if err := os.Symlink(repo.OuterPath, repo.InnerPath); err == nil {
 				svc.LogInfo(fmt.Sprintf("Repository %d completed. Successful completion of job. Data now available at inner side", repo.ID))
 			} else {
-				svc.LogInfo(fmt.Sprintf("Repository %d completed. Failed to create inner link. Data is NOT available at inner side, cause: %#v", repo.ID, err))
+				svc.LogInfo(fmt.Sprintf("Repository %d completed. Failed to create inner link. Data is NOT available at inner side, cause: %s", repo.ID, err.Error()))
 			}
 
 		} else {
-			svc.PublishData("event.jobs.failed", job.Progress)
+			svc.PublishData("event.jobs.failed", job)
 			svc.LogError(fmt.Sprintf("Repository %d failed", repo.ID), fmt.Errorf("Data is not available at inner side, cause: %#v", job.Progress.Error))
 			job.Progress.Error = err
 		}
 
 		if job.Command > 0 {
-			svc.PublishData("event.jobs.stopped", job.Progress)
+			svc.PublishData("event.jobs.stopped", job)
 			svc.LogInfo(fmt.Sprintf("Repository %d stopped. Successful stop of job. Data is NOT available at inner side", repo.ID))
 			job.Progress.Error = err
 		}
@@ -191,7 +193,7 @@ func (svc *JobsService) requestRepoDownload(payload string) (interface{}, error)
 		delete(svc.jobs, repo.ID)
 	}()
 
-	return &types.Response{Success: true, Message: fmt.Sprintf("Repository started, id: %d", repo.ID)}, nil
+	return &types.Response{Success: true, Message: fmt.Sprintf("Repository sync started, id: %d", repo.ID)}, nil
 }
 
 func (svc *JobsService) stopJob(payload string) (interface{}, error) {
@@ -214,7 +216,7 @@ func (svc *JobsService) stopJob(payload string) (interface{}, error) {
 }
 
 func (svc *JobsService) requestUrlWait(payload string) (interface{}, error) {
-	// // fmt.Printf("jobs.requestUrlWait invoked with request: %s\n", string(payload))
+	// fmt.Printf("jobs.requestUrlWait invoked with request: %s\n", string(payload))
 
 	request := &types.WaitRequest{}
 	if err := json.Unmarshal([]byte(payload), &request); err != nil {
@@ -223,11 +225,12 @@ func (svc *JobsService) requestUrlWait(payload string) (interface{}, error) {
 	}
 
 	u, _ := url.Parse(request.URL)
-	// // fmt.Println("URL Path:", u.Path)
+	// log.Println("URL Path:", u.Path)
 	// TODO: check that the request URL matches the repo URL MatchURL field (regex)
 
 	// Get the URI
-	localfile := path.Join("/safe-import/outer", u.Path)
+	filename := strings.ReplaceAll(u.Path, "/", "_")
+	localfile := path.Join("/safe-import/outer", u.Host, filename)
 	if u.Path == "/" {
 		localfile = path.Join(localfile, "index.html")
 	}
@@ -281,8 +284,6 @@ func (svc *JobsService) requestUrlWait(payload string) (interface{}, error) {
 	_, err = io.Copy(out, resp.Body)
 	out.Close()
 
-	err = svc.scan(localfile)
-
 	return &types.WaitResponse{Success: true, Filename: localfile, Error: err, Headers: headers}, nil
 }
 
@@ -307,7 +308,7 @@ func (svc *JobsService) scan(localfile string) error {
 				}
 			}
 
-			svc.LogError("Infected file detected", fmt.Errorf("INFECTED data is not available at inner side, cause: %s", text))
+			svc.LogGeneric("infection", "Infected file detected: INFECTED data is not available at inner side, cause: %s", text)
 		} else if exitcode == 2 {
 			svc.LogError("Anti-virus scan failed", fmt.Errorf("Scan failed. Data is not available at inner side, cause: %s", text))
 		}
