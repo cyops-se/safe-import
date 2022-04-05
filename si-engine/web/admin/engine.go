@@ -58,7 +58,8 @@ func Run(broker *usvc.UsvcBroker) {
 		routes.RegisterHttpRoutes(api, broker)
 		routes.RegisterReposRoutes(api, broker)
 		routes.RegisterJobsRoutes(api, broker)
-		routes.RegisterPKIRoutes(api)
+		// routes.RegisterPKIRoutes(api)
+		routes.RegisterSystemRoutes(api)
 	}
 
 	broker.Subscribe(">", func(m *nats.Msg) {

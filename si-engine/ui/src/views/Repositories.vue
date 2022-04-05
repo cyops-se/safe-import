@@ -176,7 +176,6 @@
         var t = this
         ApiService.get('repo/download/' + item.ID)
           .then(response => {
-            console.log('Download request response: ' + response.data.data.payload)
             t.$notification.success('Repository download started!')
             this.loading = false
           }).catch(response => {
@@ -213,7 +212,6 @@
       },
 
       save () {
-        console.log('edit item' + JSON.stringify(this.editedItem))
         var t = this
         if (this.editedIndex > -1) {
           Object.assign(this.items[this.editedIndex], this.editedItem)
@@ -227,7 +225,6 @@
         } else {
           ApiService.post('repo', this.editedItem)
             .then(response => {
-              console.log('Respoitory created! ' + response.data.data.payload)
               var item = JSON.parse(response.data.data.payload)
               this.$notification.success('Repository created!')
               this.items.push(item)

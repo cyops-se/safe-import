@@ -22,8 +22,11 @@
           <div class="text-right">
             {{ title }}
           </div>
-          <div class="text-h2 white--text text-right">
+          <div class="text-h4 white--text text-right">
             {{ value }}
+          </div>
+          <div class="text-right">
+            <small>{{ version }}</small>
           </div>
         </div>
       </v-col>
@@ -42,6 +45,8 @@
       subtitle: String,
       title: String,
       value: String,
+      lastseen: String,
+      version: String,
     },
   }
 </script>

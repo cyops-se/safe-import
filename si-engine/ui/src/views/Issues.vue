@@ -6,7 +6,7 @@
   >
     <v-card>
       <v-card-title class="text-h4">
-        Infections
+        Infected files
         <v-spacer />
         <v-text-field
           v-model="search"

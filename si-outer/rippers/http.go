@@ -58,7 +58,6 @@ func (context *HttpContext) DownloadDirHttp() error {
 		return err
 	}
 
-	// fmt.Println("Downloading missing or modified files: ", context.Files)
 	for f := context.Files.Front(); f != nil; f = f.Next() {
 		select {
 		case job.Command = <-job.Commands:
@@ -124,7 +123,7 @@ func (context *HttpContext) buildTreeFromURL(urlstr string, folder *Folder) erro
 			return err
 		}
 
-		// // fmt.Println("Ripping document:", urlstr)
+		fmt.Println("Processing DOCUMENT:", urlstr)
 		doc.Find("a").Each(func(i int, s *goquery.Selection) {
 			href, ok := s.Attr("href")
 			u, err := url.Parse(href)
@@ -132,7 +131,14 @@ func (context *HttpContext) buildTreeFromURL(urlstr string, folder *Folder) erro
 				return
 			}
 
+			// Filter out all mailto links
+			if strings.HasPrefix(href, "mailto") {
+				return
+			}
+
+			// fmt.Printf("Processing HREF (raw): %s\n", href)
 			href = u.RequestURI()
+			// fmt.Printf("Processing HREF (refined): %s\n", href)
 
 			if ok && !strings.Contains(href, "..") && !strings.HasPrefix(href, "/") && !strings.HasPrefix(href, "?") && !strings.HasPrefix(href, "http") {
 				if strings.HasSuffix(href, "/") {
@@ -177,6 +183,7 @@ func (context *HttpContext) buildTreeFromURL(urlstr string, folder *Folder) erro
 }
 
 func (context *HttpContext) buildFileFromURL(url string, folder *Folder) error {
+	fmt.Printf("Processing HEAD url: %s\n", url)
 	headResp, err := http.Head(url)
 	if err != nil {
 		// fmt.Println("buildTreeFromURL http.Head ERROR:", err)

@@ -130,58 +130,78 @@
           icon: 'mdi-view-dashboard',
           text: 'Dashboard',
         },
-        {
-          icon: 'mdi-source-repository',
-          text: 'Repositories',
-          to: '/pages/repos',
-        },
+        // {
+        //   icon: 'mdi-source-repository',
+        //   text: 'Repositories',
+        //   to: '/pages/repos',
+        // },
         {
           icon: 'mdi-clipboard-edit-outline',
           text: 'Jobs',
           to: '/pages/jobs',
         },
         {
-          icon: 'mdi-view-list',
-          text: 'Baselines',
-          subLinks: [
-            {
-              to: '/pages/dns',
-              icon: 'mdi-view-dashboard',
-              text: 'DNS',
-            },
-            {
-              to: '/pages/http',
-              icon: 'mdi-view-dashboard',
-              text: 'HTTP/HTTPS',
-            },
-          ],
+          to: '/pages/dns',
+          icon: 'mdi-dns',
+          text: 'DNS',
         },
+        {
+          to: '/pages/http',
+          icon: 'mdi-file-link',
+          text: 'HTTP/HTTPS',
+        },
+        // {
+        //   icon: 'mdi-view-list',
+        //   text: 'Baselines',
+        //   subLinks: [
+        //     {
+        //       to: '/pages/dns',
+        //       icon: 'mdi-view-dashboard',
+        //       text: 'DNS',
+        //     },
+        //     {
+        //       to: '/pages/http',
+        //       icon: 'mdi-view-dashboard',
+        //       text: 'HTTP/HTTPS',
+        //     },
+        //   ],
+        // },
         {
           icon: 'mdi-virus-outline',
           text: 'Issues',
           to: '/pages/issues',
         },
         {
-          icon: 'mdi-cog',
-          text: 'System',
-          subLinks: [
-            {
-              to: '/pages/logs',
-              icon: 'mdi-view-dashboard',
-              text: 'System logs',
-            },
-            {
-              icon: 'mdi-cog',
-              to: '/pages/users',
-              text: 'Users',
-            },
-            // {
-            //   icon: 'mdi-cog',
-            //   to: '/pages/systemsettings',
-            //   text: 'Settings',
-            // },
-          ],
+          to: '/pages/logs',
+          icon: 'mdi-view-dashboard',
+          text: 'System logs',
         },
+        {
+          icon: 'mdi-cog',
+          to: '/pages/users',
+          text: 'Users',
+        },
+        // {
+        //   icon: 'mdi-cog',
+        //   text: 'System',
+        //   subLinks: [
+        //     {
+        //       to: '/pages/logs',
+        //       icon: 'mdi-view-dashboard',
+        //       text: 'System logs',
+        //     },
+        //     {
+        //       icon: 'mdi-cog',
+        //       to: '/pages/users',
+        //       text: 'Users',
+        //     },
+        //     // {
+        //     //   icon: 'mdi-cog',
+        //     //   to: '/pages/systemsettings',
+        //     //   text: 'Settings',
+        //     // },
+        //   ],
+        // },
       ],
     }),
 

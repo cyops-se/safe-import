@@ -150,7 +150,6 @@
           this.$notification.error('There are no files to upload ...')
         } else {
           // Send uploaded files to parent component
-          console.log('files to upload: ' + this.uploadedFiles[0].name)
           this.$emit('filesUploaded', this.uploadedFiles)
           // Close the dialog box
           this.closeDialog()

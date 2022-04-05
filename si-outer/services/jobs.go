@@ -216,7 +216,7 @@ func (svc *JobsService) stopJob(payload string) (interface{}, error) {
 }
 
 func (svc *JobsService) requestUrlWait(payload string) (interface{}, error) {
-	// // fmt.Printf("jobs.requestUrlWait invoked with request: %s\n", string(payload))
+	// fmt.Printf("jobs.requestUrlWait invoked with request: %s\n", string(payload))
 
 	request := &types.WaitRequest{}
 	if err := json.Unmarshal([]byte(payload), &request); err != nil {

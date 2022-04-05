@@ -32,7 +32,7 @@
 
       ApiService.get('system/info')
         .then(response => {
-          this.sysinfo = response.data
+          this.sysinfo = response.data.sysinfo
         }).catch(response => {
           console.log('ERROR response: ' + response.message)
         })

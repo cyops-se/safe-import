@@ -109,7 +109,7 @@ func (svc *InnerHttpService) processHttp(w http.ResponseWriter, r *http.Request,
 	// See if the URL matches one in the lists (white, black, grey)
 	if match := svc.matchURL(u, "white"); match != nil {
 		if match.Allowed {
-			svc.LogGeneric("info", "inner: WHITE URL ALLOWED: %s, from %s (scan: %v)", msg.URL, msg.FromIP, match.NoScan)
+			svc.LogGeneric("info", "inner: WHITE URL ALLOWED: %s, from %s (ignore scan: %v)", msg.URL, msg.FromIP, match.NoScan)
 			request := &gtypes.HttpDownloadRequest{URL: msg.URL, Method: r.Method, Headers: nil, Body: "", NoScan: match.NoScan}
 
 			// Add headers
@@ -120,8 +120,6 @@ func (svc *InnerHttpService) processHttp(w http.ResponseWriter, r *http.Request,
 			// Add body
 			body, _ := ioutil.ReadAll(r.Body)
 			request.Body = base64.StdEncoding.EncodeToString(body)
-			// // fmt.Println("BODY", string(body))
-			// // fmt.Println("ENCODED BODY", string(request.Body))
 
 			if response, err := proxySvc.RequestMessage("httpget", request); err == nil {
 				if len(response.Payload) <= 0 {
@@ -147,7 +145,7 @@ func (svc *InnerHttpService) processHttp(w http.ResponseWriter, r *http.Request,
 					svc.LogError("inner: Failed to open file from si-outer", err)
 				}
 			} else {
-				svc.LogError("inner: Failed to request job from proxy", err)
+				svc.LogError(fmt.Sprintf("inner: Failed to request job from proxy, url %s, error", request.URL), err)
 			}
 		} else {
 			svc.LogGeneric("info", "inner: WHITE URL BLOCKED: %s, from %s", msg.URL, msg.FromIP)

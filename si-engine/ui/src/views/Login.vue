@@ -26,7 +26,7 @@
           dark
           flat
         >
-          <v-toolbar-title>cyops-se ui boilerplate</v-toolbar-title>
+          <v-toolbar-title>safe-import</v-toolbar-title>
           <v-spacer />
           <span
             style="font-size:0.6rem; "

@@ -312,7 +312,6 @@
         var t = this
         ApiService.delete('http/' + item.ID)
           .then(response => {
-            console.log('response: ' + JSON.stringify(response))
             t.update()
             this.$notification.success('HTTP(S) entry deleted from grey list!')
           }).catch(response => {
@@ -334,7 +333,6 @@
       editItem (item) {
         this.editedIndex = this.items.indexOf(item)
         this.editedItem = Object.assign({}, item)
-        console.log('editedItem: ' + JSON.stringify(this.editedItem))
         this.dialog = true
       },
 

@@ -13,7 +13,7 @@ const ApiService = {
     if (process.env.NODE_ENV === 'production') {
       // Vue.axios.defaults.baseURL = 'http://localhost:7499'
     } else {
-      Vue.axios.defaults.baseURL = 'http://localhost:8080'
+      Vue.axios.defaults.baseURL = 'http://192.168.0.141:8080'
     }
   },
 

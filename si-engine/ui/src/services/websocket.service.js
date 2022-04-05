@@ -1,8 +1,9 @@
 /**
  * Service to call HTTP request via Axios
  */
+console.log('window.location: ' + window.location.host)
 const WebsocketService = {
-  baseURL: 'ws://localhost:7499/ws',
+  baseURL: 'ws://' + window.location.hostname + ':7499/ws',
   connection: null,
   subscriptions: [],
 
@@ -28,21 +29,14 @@ const WebsocketService = {
   onmessage: function (event) {
     if (!event || !event.data) return
     var data = JSON.parse(event.data)
-    // console.log('DATA: ' + JSON.stringify(data))
 
     if (!data || !data.topic || !data.data) return
-    // var message = JSON.parse(data.message)
     var message = data.data.message
-
-    // if (data.topic !== 'system.heartbeat' && data.topic.startsWith('_INBOX') === false) {
-    //   console.log(JSON.stringify(data.topic) + ': ' + JSON.stringify(message))
-    // }
 
     if (this.subscriptions) {
       const subs = this.subscriptions[data.topic]
       if (subs) {
         for (var i = 0; i < subs.length; i++) {
-          // console.log('found a subscriber for topic: ' + data.topic)
           subs[i](data.topic, message)
         }
       }

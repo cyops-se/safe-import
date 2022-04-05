@@ -149,7 +149,6 @@
 
       save () {
         if (this.editedIndex > -1) {
-          console.log('edited item: ' + JSON.stringify(this.editedItem))
           Object.assign(this.items[this.editedIndex], this.editedItem)
           ApiService.put('data/key_value_pairs', this.editedItem)
             .then(response => {

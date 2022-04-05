@@ -42,8 +42,8 @@ func CreateStub(broker *UsvcBroker, name string, component string, version int) 
 }
 
 func (stub *UsvcStub) Request(name string) (*types.Response, error) {
-	if stub.broker.IsServiceAvailable(stub.fullname) == false {
-		return nil, fmt.Errorf("Service '%s' not available at the moment", stub.fullname)
+	if !stub.broker.IsServiceAvailable(stub.fullname) {
+		return nil, fmt.Errorf("service '%s' not available at the moment", stub.fullname)
 	}
 
 	subject := fmt.Sprintf("methods.%s.%s", stub.fullname, name)
@@ -51,8 +51,8 @@ func (stub *UsvcStub) Request(name string) (*types.Response, error) {
 }
 
 func (stub *UsvcStub) RequestMessage(name string, request interface{}) (*types.Response, error) {
-	if stub.broker.IsServiceAvailable(stub.fullname) == false {
-		return nil, fmt.Errorf("Service '%s' not available at the moment", stub.fullname)
+	if !stub.broker.IsServiceAvailable(stub.fullname) {
+		return nil, fmt.Errorf("service '%s' not available at the moment", stub.fullname)
 	}
 
 	subject := fmt.Sprintf("methods.%s.%s", stub.fullname, name)

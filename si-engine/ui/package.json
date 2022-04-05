@@ -1,6 +1,6 @@
 {
   "name": "@cyops-se/si-engine-ui",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "private": true,
   "scripts": {
     "serve": "vue-cli-service serve",
@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@kugatsu/vuenotification": "^1.1.4",
+    "@mdi/font": "^6.2.95",
     "axios": "^0.21.4",
     "gsap": "^3.7.1",
     "sass": "^1.32.13",
@@ -25,7 +26,6 @@
   },
   "devDependencies": {
     "@babel/core": "^7.14.3",
-    "@mdi/font": "^6.2.95",
     "@vue/cli-plugin-babel": "^4.5.13",
     "@vue/cli-plugin-eslint": "^4.5.13",
     "@vue/cli-plugin-router": "~4.3.1",

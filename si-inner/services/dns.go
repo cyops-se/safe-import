@@ -126,7 +126,7 @@ func (svc *InnerDnsService) parseQuery(m *dns.Msg, w dns.ResponseWriter) {
 				name := strings.Replace(q.Name, "_https._tcp.", "", 1)
 				_, addrs, err = net.LookupSRV("https", "tcp", name)
 				if err != nil {
-					log.Printf("DNS CRITICAL: failed to lookup SRV record %s, err: %s", q.Name, err.Error())
+					// svc.LogGeneric("error", "DNS ERROR: failed to lookup SRV record %s, err: %s", q.Name, err.Error())
 					m.Rcode = dns.RcodeNameError
 					return
 				}
@@ -217,6 +217,7 @@ func (svc *InnerDnsService) handleDnsRequest(w dns.ResponseWriter, r *dns.Msg) {
 func externalIP(remoteip net.IP) (string, error) {
 	ifaces, err := net.Interfaces()
 	if err != nil {
+		log.Printf("externalIP:net.Interfaces() failed, error: %s", err.Error())
 		return "", err
 	}
 
@@ -232,6 +233,7 @@ func externalIP(remoteip net.IP) (string, error) {
 
 		addrs, err := iface.Addrs()
 		if err != nil {
+			log.Printf("externalIP:iface.Addrs() failed, error: %s", err.Error())
 			return "", err
 		}
 
@@ -258,6 +260,7 @@ func externalIP(remoteip net.IP) (string, error) {
 			return ip.String(), nil
 		}
 	}
+
 	return "", errors.New("are you connected to the network?")
 }
 

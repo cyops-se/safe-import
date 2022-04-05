@@ -4,12 +4,14 @@ import (
 	"log"
 	"net/http"
 
+	jwt "github.com/appleboy/gin-jwt/v2"
 	db "github.com/cyops-se/safe-import/si-engine/web/admin/db"
 	"github.com/gin-gonic/gin"
 )
 
 func RegisterUserRoutes(auth *gin.RouterGroup) {
 	auth.GET("/user", GetAllUsers)
+	auth.GET("/user/current", GetCurrentUser)
 	auth.GET("/user/id/:id", GetUserByID)
 	auth.GET("/user/field/:name/:value", GetUserByField)
 
@@ -41,6 +43,11 @@ func GetUserByID(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"user": user})
+}
+
+func GetCurrentUser(c *gin.Context) {
+	claims := jwt.ExtractClaims(c)
+	c.JSON(http.StatusOK, gin.H{"claims": claims})
 }
 
 func GetUserByField(c *gin.Context) {

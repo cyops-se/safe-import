@@ -200,7 +200,6 @@
         this.items.splice(this.editedIndex, 1)
         this.closeDelete()
 
-        console.log('item: ' + JSON.stringify(this.editedItem))
         ApiService.delete('user/' + this.editedItem.ID, this.editedItem)
           .then(response => {
             this.$notification.success('User deleted!')
@@ -228,14 +227,11 @@
       save () {
         var kalle = this.editedItem
         if (this.editedIndex > -1) {
-          console.log('save user: ' + JSON.stringify(this.editedItem))
           Object.assign(this.items[this.editedIndex], this.editedItem)
           ApiService.put('user/' + this.editedItem.ID, this.editedItem)
             .then(response => {
-              console.log('response.data: ' + JSON.stringify(response.data))
               this.$notification.success('User ' + response.data.fullname + ' updated!')
             }).catch(response => {
-              console.log('response: ' + JSON.stringify(response))
               this.$notification.error('Failed to update user!')
             })
         } else {

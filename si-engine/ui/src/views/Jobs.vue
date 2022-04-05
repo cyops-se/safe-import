@@ -37,7 +37,6 @@
     created () {
       var t = this
       WebsocketService.topic('file.download.start', function (topic, url) {
-        console.log('jobs: ' + url)
         t.setState(url, 'downloading')
       })
       WebsocketService.topic('file.download.fail', function (topic, url) {
@@ -86,8 +85,6 @@
         item.time = new Date()
         // Object.assign(this.items[idx], item)
         Vue.set(this.items, idx, item)
-
-        console.log('items: ' + JSON.stringify(this.items))
       },
     },
   }

@@ -13,6 +13,7 @@ import (
 
 var (
 	GitVersion string
+	GitCommit  string
 )
 
 type Usvc struct {
@@ -243,7 +244,7 @@ func (svc *Usvc) metaInfo(payload string) (interface{}, error) {
 	svcinfo.Description = svc.description
 	svcinfo.State = types.ServiceState(svc.state)
 
-	for k, _ := range svc.methods {
+	for k := range svc.methods {
 		methodinfo := &types.MethodInfo{Name: k} // TODO: Add description (probably needs a new struct for registering methods rather than a simple func)
 		svcinfo.MethodInfos = append(svcinfo.MethodInfos, methodinfo)
 	}
@@ -257,7 +258,7 @@ func (svc *Usvc) metaOp(payload string) (interface{}, error) {
 	var err error
 	var request types.MetaOpRequest
 	if err = json.Unmarshal([]byte(payload), &request); err != nil {
-		return nil, fmt.Errorf("Unable to unmarshal JSON request: metaOp(%s)", payload)
+		return nil, fmt.Errorf("unable to unmarshal JSON request: metaOp(%s)", payload)
 	}
 
 	operation := request.Operation
@@ -281,14 +282,14 @@ func (svc *Usvc) metaGet(payload string) (interface{}, error) {
 	var err error
 	var request types.MetaGetRequest
 	if err = json.Unmarshal([]byte(payload), &request); err != nil {
-		return nil, fmt.Errorf("Unable to unmarshal JSON request: metaGet(%s)", payload)
+		return nil, fmt.Errorf("unable to unmarshal JSON request: metaGet(%s)", payload)
 	}
 
 	if val, ok := svc.Settings[request.Name]; ok {
 		return val, nil
 	}
 
-	return nil, fmt.Errorf("No such settings item: %s", request.Name)
+	return nil, fmt.Errorf("no such settings item: %s", request.Name)
 }
 
 func (svc *Usvc) metaGetAll(notused string) (interface{}, error) {
@@ -299,7 +300,7 @@ func (svc *Usvc) metaSet(payload string) (interface{}, error) {
 	var err error
 	var request types.MetaSetRequest
 	if err = json.Unmarshal([]byte(payload), &request); err != nil {
-		return nil, fmt.Errorf("Unable to unmarshal JSON request: metaGet(%s)", payload)
+		return nil, fmt.Errorf("unable to unmarshal JSON request: metaGet(%s)", payload)
 	}
 
 	svc.Settings[request.Name] = request.Value
@@ -310,7 +311,7 @@ func (svc *Usvc) metaSet(payload string) (interface{}, error) {
 
 func (svc *Usvc) metaSetAll(payload string) (interface{}, error) {
 	if err := json.Unmarshal([]byte(payload), &svc.Settings); err != nil {
-		return nil, fmt.Errorf("Unable to unmarshal JSON request: metaSetAll(%s)", payload)
+		return nil, fmt.Errorf("unable to unmarshal JSON request: metaSetAll(%s)", payload)
 	}
 
 	svc.SaveSettings()
@@ -339,7 +340,6 @@ func (svc *Usvc) jobengine() {
 		for {
 			select {
 			case <-svc.ticker.C:
-				break
 			case <-svc.chChangeTicker:
 				continue
 			}

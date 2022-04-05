@@ -19,6 +19,8 @@
               :color="server.color"
               :value="server.status"
               :title="server.title"
+              :lastseen="server.lastseen"
+              :version="server.version"
             />
           </v-col>
         </v-row>
@@ -42,33 +44,39 @@
 
     data: () => ({
       servers: {
-        '1.si-inner.repos': { status: 'ok', title: 'Inner - Repositories', color: 'error', icon: 'mdi-weather-pouring', lastseen: new Date() },
-        '1.si-inner.http': { status: 'ok', title: 'Inner - HTTP/HTTPS', color: 'error', icon: 'mdi-weather-pouring', lastseen: new Date() },
-        '1.si-inner.dns': { status: 'ok', title: 'Inner - DNS', color: 'error', icon: 'mdi-weather-pouring', lastseen: new Date() },
-        '1.si-gatekeeper.proxy': { status: 'ok', title: 'Gatekeeper', color: 'error', icon: 'mdi-weather-pouring', lastseen: new Date() },
-        '1.si-outer.jobs': { status: 'ok', title: 'Outer - Jobs', color: 'error', icon: 'mdi-weather-pouring', lastseen: new Date() },
+        '1.si-inner.repos': { status: 'no connection', title: 'Inner - Repositories', color: 'error', icon: 'mdi-weather-pouring', lastseen: '' },
+        '1.si-inner.http': { status: 'no connection', title: 'Inner - HTTP/HTTPS', color: 'error', icon: 'mdi-weather-pouring', lastseen: '' },
+        '1.si-inner.dns': { status: 'no connection', title: 'Inner - DNS', color: 'error', icon: 'mdi-weather-pouring', lastseen: '' },
+        '1.si-gatekeeper.proxy': { status: 'no connection', title: 'Gatekeeper', color: 'error', icon: 'mdi-weather-pouring', lastseen: '' },
+        '1.si-outer.jobs': { status: 'no connection', title: 'Outer - Jobs', color: 'error', icon: 'mdi-weather-pouring', lastseen: '' },
       },
     }),
 
     computed: {
     },
 
-    watch: {
-      $route (to, from) {
-        console.log('route change: ', to, from)
-      },
-    },
-
     created () {
       var t = this
       WebsocketService.topic('system.heartbeat', function (topic, json) {
-        console.log(topic + ': ' + json)
         var svc = JSON.parse(json)
         var server = t.servers[svc.name]
         if (server) {
-          server.status = 'ok'
+          var now = new Date()
+          server.status = now.toISOString().substring(0, 19).replace('T', ' ')
           server.icon = 'mdi-white-balance-sunny'
           server.color = 'success'
+          server.version = svc.gitversion
+          server.lastseen = now.toISOString()
+        }
+      })
+
+      WebsocketService.topic('system.service.stopped', function (topic, name) {
+        var server = t.servers[name]
+        if (server) {
+          var now = new Date()
+          server.status = now.toISOString().substring(0, 19).replace('T', ' ')
+          server.icon = 'mdi-weather-pouring'
+          server.color = 'error'
         }
       })
     },
