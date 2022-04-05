@@ -1,4 +1,7 @@
 # si-inner - Part of the safe-import solution
+
+__IMPORTANT: The X.509 certificate and associated RSA key pair in this repo is provided for test purposes and should be replaced by your own certificate and keys before going into production__
+
 ## Introduction
 The inner interface of [safe-import](http://github.com/cyops-se/safe-import/README.md), please read more about the safe-import concept to better understand the purpose of this application.
 
