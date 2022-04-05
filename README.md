@@ -1,7 +1,7 @@
 # safe-import - a basic Cross Domain Solution
 https://github.com/cyops-se/safe-import
 
-__IMPORTANT! The safe-import project is in very development and may exhibit unexpected and potentially unwanted behaviour. DO NOT USE IN FULL PRODUCTION... yet :)__
+__IMPORTANT! The safe-import project is in very early development and is likely to exhibit unexpected and potentially unwanted behaviour. DO NOT USE IN FULL PRODUCTION... yet :)__
 
 ## Introduction
 Sensitive systems, like Industrial Automation and Control Systems (IACS or ICS), must be protected physically and logically from unauthorized access, which basically means it has to be isolated from other networks and systems.
