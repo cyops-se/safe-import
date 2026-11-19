@@ -57,7 +57,7 @@ Then open the administration UI (default http://127.0.0.1:7499/ui) and register 
 
 ## From source
 
-Requirements: Go (see `go.mod`), Node.js 20, a NATS server and ClamAV (`clamd` + `clamdscan`).
+Requirements: Go (see `go.mod`), Node.js 22, a NATS server and ClamAV (`clamd` + `clamdscan`).
 
 ```sh
 build/buildall.sh     # builds all components, including the web UI

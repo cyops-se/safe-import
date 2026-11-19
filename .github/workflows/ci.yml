@@ -13,11 +13,14 @@ jobs:
     name: Go build, vet and test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
-          go-version-file: go.mod
+          # Always the latest patch release, so that govulncheck does not report
+          # vulnerabilities in the standard library that are already fixed
+          go-version: stable
+          check-latest: true
 
       - name: Check formatting
         run: |
@@ -41,11 +44,14 @@ jobs:
     name: Go security analysis
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
-          go-version-file: go.mod
+          # Always the latest patch release, so that govulncheck does not report
+          # vulnerabilities in the standard library that are already fixed
+          go-version: stable
+          check-latest: true
 
       - name: govulncheck (known vulnerabilities in dependencies)
         run: |
@@ -73,11 +79,11 @@ jobs:
       run:
         working-directory: si-engine/ui
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: si-engine/ui/package-lock.json
 
@@ -104,6 +110,6 @@ jobs:
       matrix:
         component: [si-engine, si-inner, si-outer, si-gatekeeper]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Build ${{ matrix.component }}
         run: docker build --target ${{ matrix.component }} -t safe-import/${{ matrix.component }}:ci .

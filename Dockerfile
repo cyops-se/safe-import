@@ -2,8 +2,8 @@
 #   docker build --target si-engine -t safe-import/si-engine .
 # or all of them with docker compose (see docker-compose.yml).
 
-ARG GO_VERSION=1.26
-ARG NODE_VERSION=20
+ARG GO_VERSION=1.27
+ARG NODE_VERSION=22
 ARG ALPINE_VERSION=3.22
 
 # ---------------------------------------------------------------- web UI
