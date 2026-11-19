@@ -1,6 +1,7 @@
 package rippers
 
 import (
+	gocontext "context"
 	"fmt"
 	"io"
 	"log"
@@ -10,8 +11,8 @@ import (
 	"path"
 	"strings"
 
+	"github.com/cloudsoda/go-smb2"
 	"github.com/cyops-se/safe-import/si-outer/types"
-	"github.com/hirochachacha/go-smb2"
 )
 
 type SmbContext struct {
@@ -62,7 +63,7 @@ func (context *SmbContext) DownloadDirectoryCifs() error {
 	}
 
 	di.Negotiator.RequireMessageSigning = false
-	c, err := di.Dial(conn)
+	c, err := di.DialConn(gocontext.Background(), conn, conn.RemoteAddr().String())
 	if err != nil {
 		// fmt.Println("DownloadDirectoryCifs di.Dial ERROR:", err)
 		return err

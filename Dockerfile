@@ -66,6 +66,7 @@ ENTRYPOINT ["/usr/local/bin/si-outer"]
 
 FROM base AS si-gatekeeper
 RUN apk add --no-cache clamav-clamdscan \
+ && mkdir -p /etc/clamav \
  && printf 'TCPSocket 3310\nTCPAddr clamav\n' > /etc/clamav/clamd.conf
 COPY --from=build /out/si-gatekeeper /usr/local/bin/si-gatekeeper
 ENV SI_CLAMDSCAN=/usr/bin/clamdscan \

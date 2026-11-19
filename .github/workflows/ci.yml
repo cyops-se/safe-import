@@ -107,6 +107,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [go, ui]
     strategy:
+      fail-fast: false
       matrix:
         component: [si-engine, si-inner, si-outer, si-gatekeeper]
     steps:
