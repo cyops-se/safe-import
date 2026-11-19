@@ -10,11 +10,27 @@ const ApiService = {
   init () {
     Vue.use(VueAxios, axios)
 
-    if (process.env.NODE_ENV === 'production') {
-      // Vue.axios.defaults.baseURL = 'http://localhost:7499'
-    } else {
-      Vue.axios.defaults.baseURL = 'http://192.168.0.141:8080'
+    // Requests are relative to the page origin. During development the vue-cli dev server
+    // proxies /api and /ws to si-engine, see vue.config.js.
+    if (process.env.VUE_APP_API_URL) {
+      Vue.axios.defaults.baseURL = process.env.VUE_APP_API_URL
     }
+
+    // A rejected token (expired, or the user was removed) means the user must log in again
+    Vue.axios.interceptors.response.use(
+      response => response,
+      error => {
+        const status = error.response && error.response.status
+        const url = (error.config && error.config.url) || ''
+        if (status === 401 && !url.includes('/api/auth/login')) {
+          JwtService.destroyToken()
+          if (!window.location.pathname.endsWith('/auth/login')) {
+            window.location.assign('/ui/auth/login')
+          }
+        }
+        return Promise.reject(error)
+      },
+    )
   },
 
   /**

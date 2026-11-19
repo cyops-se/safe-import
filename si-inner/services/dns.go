@@ -175,8 +175,7 @@ func (svc *InnerDnsService) matchQuery(q string, class string) *types.DnsRequest
 	// Now we iterate through the entries that matches scheme and fqdn
 	// and try to find a match using the entry MatchURL regexp
 	for _, v := range existing {
-		re, _ := regexp.Compile(v.MatchQuery)
-		if re.MatchString(q) {
+		if re, err := regexp.Compile(v.MatchQuery); err == nil && re.MatchString(q) {
 			v.Count++
 			v.LastSeen = time.Now().UTC()
 			common.DB.Save(v)
@@ -325,8 +324,7 @@ func (svc *InnerDnsService) prune(payload string) (interface{}, error) {
 	// matches a MatchURL regexp field of a white or black entry.
 	for _, wv := range whiteitems {
 		for _, gv := range greyitems {
-			re, _ := regexp.Compile(wv.MatchQuery)
-			if re.MatchString(gv.Query) {
+			if re, err := regexp.Compile(wv.MatchQuery); err == nil && re.MatchString(gv.Query) {
 				if result := common.DB.Delete(&gv); result.Error != nil {
 					svc.LogGeneric("error", "Failed to delete item from database, error: %#v", result.Error)
 					return nil, result.Error
@@ -337,8 +335,7 @@ func (svc *InnerDnsService) prune(payload string) (interface{}, error) {
 
 	for _, bv := range blackitems {
 		for _, gv := range greyitems {
-			re, _ := regexp.Compile(bv.MatchQuery)
-			if re.MatchString(gv.Query) {
+			if re, err := regexp.Compile(bv.MatchQuery); err == nil && re.MatchString(gv.Query) {
 				if result := common.DB.Delete(&gv); result.Error != nil {
 					svc.LogGeneric("error", "Failed to delete item from database, error: %#v", result.Error)
 					return nil, result.Error

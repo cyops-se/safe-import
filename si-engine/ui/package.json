@@ -4,15 +4,14 @@
   "private": true,
   "scripts": {
     "serve": "vue-cli-service serve",
-    "dev": "yarn serve",
+    "dev": "npm run serve",
     "build": "vue-cli-service build",
-    "lint": "vue-cli-service lint",
-    "postversion": "node scripts/postversion.js"
+    "lint": "vue-cli-service lint --no-fix"
   },
   "dependencies": {
     "@kugatsu/vuenotification": "^1.1.4",
     "@mdi/font": "^6.2.95",
-    "axios": "^0.21.4",
+    "axios": "^0.30.2",
     "gsap": "^3.7.1",
     "sass": "^1.32.13",
     "vue": "^2.6.11",

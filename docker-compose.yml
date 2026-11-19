@@ -1,0 +1,139 @@
+# safe-import with docker compose.
+#
+#   cp deploy/.env.example deploy/.env    # and fill in the passwords
+#   ./install/generate-ca.sh /safe-import/ca
+#   docker compose --env-file deploy/.env up -d --build
+#
+# Network layout (see docs/ARCHITECTURE.md):
+#   outer  - Internet access, only si-outer and clamav (signature updates)
+#   bus    - internal message bus, no Internet access
+#   av     - gatekeeper <-> clamav, no Internet access
+#   inner  - published ports towards the sensitive network (si-inner)
+#
+# Data areas (named volumes) and who may write to them:
+#   outer      si-outer (rw), si-gatekeeper (ro)
+#   staging    si-gatekeeper only
+#   inner      si-gatekeeper (rw), si-inner (ro)
+#   quarantine si-gatekeeper only
+
+name: safe-import
+
+x-common: &common
+  restart: unless-stopped
+  read_only: true
+  security_opt:
+    - no-new-privileges:true
+  cap_drop: [ALL]
+  tmpfs:
+    - /tmp
+
+services:
+  nats:
+    image: nats:2.11-alpine
+    command: ["-c", "/etc/nats/nats-server.conf"]
+    <<: *common
+    environment:
+      NATS_PASSWORD_ENGINE: ${NATS_PASSWORD_ENGINE:?set in deploy/.env}
+      NATS_PASSWORD_INNER: ${NATS_PASSWORD_INNER:?set in deploy/.env}
+      NATS_PASSWORD_GATEKEEPER: ${NATS_PASSWORD_GATEKEEPER:?set in deploy/.env}
+      NATS_PASSWORD_OUTER: ${NATS_PASSWORD_OUTER:?set in deploy/.env}
+    volumes:
+      - ./deploy/nats-server.conf:/etc/nats/nats-server.conf:ro
+    networks: [bus]
+
+  clamav:
+    image: clamav/clamav:stable
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - clamav-db:/var/lib/clamav
+    networks: [outer, av]
+
+  si-outer:
+    build: { context: ., target: si-outer }
+    <<: *common
+    depends_on: [nats]
+    environment:
+      NATS_USER: si-outer
+      NATS_PASSWORD: ${NATS_PASSWORD_OUTER}
+    volumes:
+      - outer:/safe-import/outer
+      - outer-data:/data
+      - outer-settings:/cyops/usvc/settings
+    networks: [bus, outer]
+
+  si-gatekeeper:
+    build: { context: ., target: si-gatekeeper }
+    <<: *common
+    depends_on: [nats, clamav]
+    environment:
+      NATS_USER: si-gatekeeper
+      NATS_PASSWORD: ${NATS_PASSWORD_GATEKEEPER}
+    volumes:
+      - outer:/safe-import/outer:ro
+      - staging:/safe-import/staging
+      - inner:/safe-import/inner
+      - quarantine:/safe-import/quarantine
+      - gatekeeper-data:/data
+      - gatekeeper-settings:/cyops/usvc/settings
+    networks: [bus, av]
+
+  si-inner:
+    build: { context: ., target: si-inner }
+    <<: *common
+    depends_on: [nats]
+    cap_add: [NET_BIND_SERVICE]
+    sysctls:
+      net.ipv4.ip_unprivileged_port_start: "0"
+    environment:
+      NATS_USER: si-inner
+      NATS_PASSWORD: ${NATS_PASSWORD_INNER}
+    volumes:
+      - inner:/safe-import/inner:ro
+      - ${SI_CA_DIR:-/safe-import/ca}:/ca:ro
+      - inner-data:/data
+      - inner-settings:/cyops/usvc/settings
+    ports:
+      - "${SI_INNER_BIND:-0.0.0.0}:53:53/udp"
+      - "${SI_INNER_BIND:-0.0.0.0}:53:53/tcp"
+      - "${SI_INNER_BIND:-0.0.0.0}:80:80"
+      - "${SI_INNER_BIND:-0.0.0.0}:443:443"
+      - "${SI_INNER_BIND:-0.0.0.0}:8530:8530"
+    networks: [bus, inner]
+
+  si-engine:
+    build: { context: ., target: si-engine }
+    <<: *common
+    depends_on: [nats]
+    environment:
+      NATS_USER: si-engine
+      NATS_PASSWORD: ${NATS_PASSWORD_ENGINE}
+      SI_ENGINE_JWT_KEY: ${SI_ENGINE_JWT_KEY:-}
+    volumes:
+      - engine-data:/data
+    ports:
+      - "${SI_ENGINE_PUBLISH:-127.0.0.1:7499}:7499"
+    networks: [bus, inner]
+
+networks:
+  outer: {}
+  bus:
+    internal: true
+  av:
+    internal: true
+  inner: {}
+
+volumes:
+  clamav-db:
+  outer:
+  staging:
+  inner:
+  quarantine:
+  outer-data:
+  outer-settings:
+  gatekeeper-data:
+  gatekeeper-settings:
+  inner-data:
+  inner-settings:
+  engine-data:

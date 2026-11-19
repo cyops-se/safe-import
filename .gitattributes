@@ -1,0 +1,4 @@
+# Shell scripts and container files must have LF line endings, also on Windows
+*.sh        text eol=lf
+Dockerfile  text eol=lf
+*.conf      text eol=lf

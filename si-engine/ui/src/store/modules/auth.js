@@ -1,6 +1,7 @@
 /* eslint-disable prefer-promise-reject-errors */
 import ApiService from '@/services/api.service'
 import JwtService from '@/services/jwt.service'
+import WebsocketService from '@/services/websocket.service'
 
 // action types
 export const VERIFY_AUTH = 'verify'
@@ -56,17 +57,19 @@ const actions = {
     }
   },
   [LOGOUT] (context) {
+    WebsocketService.disconnect()
     context.commit(PURGE_AUTH)
   },
   [REGISTER] (context, credentials) {
-    return new Promise(resolve => {
+    // Registration only creates the account (the first administrator), the user logs in afterwards
+    return new Promise((resolve, reject) => {
       ApiService.post('auth/register', credentials)
         .then(({ data }) => {
-          context.commit(SET_AUTH, data)
           resolve(data)
         })
         .catch(({ response }) => {
-          context.commit(SET_ERROR, response)
+          context.commit(SET_ERROR, response?.data)
+          reject(response)
         })
     })
   },
@@ -89,12 +92,8 @@ const actions = {
     })
   },
   [UPDATE_PASSWORD] (context, payload) {
-    const password = payload
-
-    return ApiService.put('password', password).then(({ data }) => {
-      context.commit(SET_PASSWORD, data)
-      return data
-    })
+    // payload: { password, newpassword }
+    return ApiService.put('password', payload).then(({ data }) => data)
   },
 }
 
@@ -109,12 +108,10 @@ const mutations = {
       state.user = user
       state.errors = {}
       JwtService.saveToken(state.user.token)
+      WebsocketService.connect()
     } catch (e) {
       console.log('ERROR SET_AUTH exception: ', e)
     }
-  },
-  [SET_PASSWORD] (state, password) {
-    state.user.password = password
   },
   [PURGE_AUTH] (state) {
     state.isAuthenticated = false
