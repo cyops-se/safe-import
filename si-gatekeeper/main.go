@@ -33,13 +33,16 @@ func main() {
 	common.ConnectDatabase()
 
 	broker := &usvc.UsvcBroker{}
-	broker.Initialize()
+	if err := broker.Initialize(); err != nil {
+		fmt.Println("Failed to initialize NATS broker:", err)
+		os.Exit(1)
+	}
 	broker.SetTimeout(30)
 
 	proxysvc := &services.ProxyService{}
 	proxysvc.Initialize(broker)
 
-	c := make(chan os.Signal)
+	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	<-c
 

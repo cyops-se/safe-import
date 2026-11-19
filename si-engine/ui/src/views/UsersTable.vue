@@ -56,6 +56,27 @@
                       label="E-mail"
                     />
                   </v-col>
+                  <v-col
+                    cols="12"
+                    md="12"
+                  >
+                    <v-select
+                      v-model="editedItem.role"
+                      :items="roles"
+                      label="Role"
+                    />
+                  </v-col>
+                  <v-col
+                    cols="12"
+                    md="12"
+                  >
+                    <v-text-field
+                      v-model="editedItem.password"
+                      type="password"
+                      autocomplete="new-password"
+                      :label="editedIndex === -1 ? 'Password (min 10 characters)' : 'New password (leave empty to keep)'"
+                    />
+                  </v-col>
                 </v-row>
               </v-container>
             </v-card-text>
@@ -85,7 +106,7 @@
         >
           <v-card>
             <v-card-title class="text-h5">
-              Are you sure you want to delete user {{editedItem.email}}?
+              Are you sure you want to delete user {{ editedItem.email }}?
             </v-card-title>
             <v-card-actions>
               <v-spacer />
@@ -145,22 +166,31 @@
           text: 'ID',
           align: 'start',
           filterable: false,
-          value: 'id',
+          value: 'ID',
           width: 20,
         },
         { text: 'Full name', value: 'fullname', width: 150 },
         { text: 'E-mail', value: 'email' },
+        { text: 'Role', value: 'role', width: 100 },
         { text: 'Actions', value: 'actions', width: 1, sortable: false },
+      ],
+      roles: [
+        { text: 'Administrator (read/write)', value: 'admin' },
+        { text: 'Viewer (read only)', value: 'viewer' },
       ],
       items: [],
       editedIndex: -1,
       editedItem: {
         fullname: '',
         email: '',
+        role: 'viewer',
+        password: '',
       },
       defaultItem: {
         fullname: '',
         email: '',
+        role: 'viewer',
+        password: '',
       },
     }),
 
@@ -171,22 +201,29 @@
     },
 
     created () {
-      this.loading = true
-      ApiService.get('user')
-        .then(response => {
-          console.log('response.data: ' + JSON.stringify(response.data))
-          this.items = response.data.users
-          this.loading = false
-        }).catch(response => {
-          console.log('ERROR response: ' + JSON.stringify(response))
-        })
+      this.initialize()
     },
 
     methods: {
-      initialize () {},
+      initialize () {
+        this.loading = true
+        ApiService.get('user')
+          .then(response => {
+            this.items = response.data.users
+            this.loading = false
+          }).catch(() => {
+            this.loading = false
+            this.$notification.error('Failed to load users')
+          })
+      },
+
+      errorText (error) {
+        return (error && error.response && error.response.data && error.response.data.error) || 'unknown error'
+      },
+
       editItem (item) {
         this.editedIndex = this.items.indexOf(item)
-        this.editedItem = Object.assign({}, item)
+        this.editedItem = Object.assign({}, item, { password: '' })
         this.dialog = true
       },
 
@@ -197,14 +234,15 @@
       },
 
       deleteItemConfirm () {
-        this.items.splice(this.editedIndex, 1)
+        const id = this.editedItem.ID
         this.closeDelete()
 
-        ApiService.delete('user/' + this.editedItem.ID, this.editedItem)
-          .then(response => {
+        ApiService.delete('user/' + id)
+          .then(() => {
             this.$notification.success('User deleted!')
-          }).catch(response => {
-            this.$notification.error('Failed to delete user!')
+            this.initialize()
+          }).catch(error => {
+            this.$notification.error('Failed to delete user: ' + this.errorText(error))
           })
       },
 
@@ -225,24 +263,18 @@
       },
 
       save () {
-        var kalle = this.editedItem
-        if (this.editedIndex > -1) {
-          Object.assign(this.items[this.editedIndex], this.editedItem)
-          ApiService.put('user/' + this.editedItem.ID, this.editedItem)
-            .then(response => {
-              this.$notification.success('User ' + response.data.fullname + ' updated!')
-            }).catch(response => {
-              this.$notification.error('Failed to update user!')
-            })
-        } else {
-          this.items.push(this.editedItem)
-          ApiService.post('user', this.editedItem)
-            .then(response => {
-              this.$notification.success('User ' + response.data.fullname + ' added!')
-            }).catch(response => {
-              this.$notification.error('Failed to add user!' + response + ', ' + JSON.stringify(kalle))
-            })
-        }
+        const item = Object.assign({}, this.editedItem)
+        const request = this.editedIndex > -1
+          ? ApiService.put('user/' + item.ID, item)
+          : ApiService.post('user', item)
+
+        request
+          .then(response => {
+            this.$notification.success('User ' + response.data.data.fullname + ' saved!')
+            this.initialize()
+          }).catch(error => {
+            this.$notification.error('Failed to save user: ' + this.errorText(error))
+          })
         this.close()
       },
     },

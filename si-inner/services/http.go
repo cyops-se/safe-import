@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -138,6 +139,12 @@ func (svc *InnerHttpService) processHttp(w http.ResponseWriter, r *http.Request,
 					}
 				}
 
+				if !isInside(innerDir(), dr.Filename) {
+					svc.LogGeneric("alert", "inner: proxy returned a file outside the inner area: %s", dr.Filename)
+					http.Error(w, "Bad gateway", http.StatusBadGateway)
+					return
+				}
+
 				if file, err := os.Open(dr.Filename); err == nil {
 					defer file.Close()
 					io.Copy(w, file)
@@ -169,8 +176,7 @@ func (svc *InnerHttpService) matchURL(u *url.URL, class string) *types.HttpReque
 	// Now we iterate through the entries that matches scheme and fqdn
 	// and try to find a match using the entry MatchURL regexp
 	for _, v := range existing {
-		re, _ := regexp.Compile(v.MatchURL)
-		if re.MatchString(u.String()) {
+		if re, err := regexp.Compile(v.MatchURL); err == nil && re.MatchString(u.String()) {
 			v.Count++
 			v.LastSeen = time.Now().UTC()
 			common.DB.Save(v)
@@ -258,8 +264,7 @@ func (svc *InnerHttpService) prune(payload string) (interface{}, error) {
 	for _, wv := range whiteitems {
 		for _, gv := range allitems {
 			if wv.ID != gv.ID {
-				re, _ := regexp.Compile(wv.MatchURL)
-				if re.MatchString(gv.URL) {
+				if re, err := regexp.Compile(wv.MatchURL); err == nil && re.MatchString(gv.URL) {
 					log.Printf("PRUNE: deleting %s from %s list", gv.URL, gv.Class)
 					if result := common.DB.Delete(&gv); result.Error != nil {
 						svc.LogGeneric("error", "Failed to delete item from database, error: %#v", result.Error)
@@ -273,8 +278,7 @@ func (svc *InnerHttpService) prune(payload string) (interface{}, error) {
 	for _, bv := range blackitems {
 		for _, gv := range allitems {
 			if bv.ID != gv.ID {
-				re, _ := regexp.Compile(bv.MatchURL)
-				if re.MatchString(gv.URL) {
+				if re, err := regexp.Compile(bv.MatchURL); err == nil && re.MatchString(gv.URL) {
 					log.Printf("PRUNE: deleting %s from %s list", gv.URL, gv.Class)
 					if result := common.DB.Delete(&gv); result.Error != nil {
 						svc.LogGeneric("error", "Failed to delete item from database, error: %#v", result.Error)
@@ -301,4 +305,21 @@ func (svc *InnerHttpService) delete(payload string) (interface{}, error) {
 	}
 
 	return nil, nil
+}
+
+// innerDir returns the directory where the gatekeeper places vetted files
+func innerDir() string {
+	if d := strings.TrimSpace(os.Getenv("SI_INNER_DIR")); d != "" {
+		return d
+	}
+	return "/safe-import/inner"
+}
+
+// isInside returns true if file is located inside dir
+func isInside(dir string, file string) bool {
+	rel, err := filepath.Rel(filepath.Clean(dir), filepath.Clean(file))
+	if err != nil || filepath.IsAbs(rel) {
+		return false
+	}
+	return rel != "." && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }

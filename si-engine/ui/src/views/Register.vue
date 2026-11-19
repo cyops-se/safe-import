@@ -117,7 +117,10 @@
             this.$store
               .dispatch('auth/register', { fullname, email, password })
               .then(() => this.$router.push({ name: 'Login' }))
-              .catch(() => {})
+              .catch(error => {
+                const msg = (error && error.data && error.data.error) || 'Registration failed'
+                this.$notification.error(msg)
+              })
           } catch (e) {
             this.responseStatus = e.responseStatus || e
           } finally {

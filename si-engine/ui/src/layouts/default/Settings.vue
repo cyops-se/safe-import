@@ -88,7 +88,7 @@
   import Proxyable from 'vuetify/lib/mixins/proxyable'
 
   // Vuex
-  import { get, sync } from 'vuex-pathify'
+  import { sync } from 'vuex-pathify'
 
   export default {
     name: 'DashboardCoreSettings',

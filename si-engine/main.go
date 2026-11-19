@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log"
 	"os"
 	"os/signal"
 	"syscall"
@@ -27,15 +28,26 @@ func main() {
 		return
 	}
 
+	cfg, err := admin.LoadConfig()
+	if err != nil {
+		log.Fatalf("Invalid configuration: %v", err)
+	}
+
 	broker := &usvc.UsvcBroker{}
-	broker.Initialize()
+	if err := broker.Initialize(); err != nil {
+		log.Fatalf("Failed to connect to NATS: %v", err)
+	}
 	broker.SetTimeout(30)
 
-	go admin.Run(broker)
+	go func() {
+		if err := admin.Run(broker, cfg); err != nil {
+			log.Fatalf("Admin web server failed: %v", err)
+		}
+	}()
 
-	c := make(chan os.Signal)
+	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	<-c
 
-	// fmt.Println("Exit signal received... exiting")
+	broker.Shutdown()
 }

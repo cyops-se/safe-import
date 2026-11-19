@@ -13,18 +13,27 @@ type KeyValuePair struct {
 	Extra string `json:"extra"`
 }
 
-// User
+// Roles
+const (
+	RoleAdmin  = "admin"  // May read and change everything
+	RoleViewer = "viewer" // May only read
+)
+
+// User. The Password field holds a bcrypt hash, never the plain text password.
 type User struct {
 	gorm.Model
-	UserName string `form:"email" json:"email" binding:"required"`
-	Password string `form:"password" json:"password"`
+	UserName string `form:"email" json:"email" binding:"required" gorm:"uniqueIndex"`
+	Password string `form:"password" json:"password,omitempty"`
 	FullName string `form:"fullname" json:"fullname" binding:"required"`
+	Role     string `form:"role" json:"role" gorm:"default:viewer"`
 }
 
+// UserData is the user representation sent to clients (no password)
 type UserData struct {
 	ID       uint   `form:"id" json:"ID" binding:"required" gorm:"primary_key"`
 	UserName string `form:"email" json:"email" binding:"required"`
 	FullName string `form:"fullname" json:"fullname" binding:"required"`
+	Role     string `form:"role" json:"role"`
 }
 
 type UserPasswordUpdate struct {

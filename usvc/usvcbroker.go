@@ -20,11 +20,11 @@ func (broker *UsvcBroker) Initialize() error {
 	broker.hostname = fmt.Sprintf("%s.%d", host, os.Getpid())
 	broker.timeout = 2
 
-	broker.CheckConnection()
 	broker.services = make(map[string]Usvc)
 	broker.servicestates = make(map[string]*types.UsvcState)
-	if broker.err != nil {
-		broker.LogError("BROKER", "Broker failed to connect with NATS:", broker.err)
+	if err := broker.CheckConnection(); err != nil {
+		fmt.Printf("BROKER: Broker failed to connect with NATS (%s): %v\n", NatsURL(), err)
+		return err
 	}
 
 	_, broker.err = broker.connection.Subscribe("system.heartbeat", broker.microServiceStateHandler)
@@ -149,9 +149,12 @@ func GetClientName() string {
 func (broker *UsvcBroker) CheckConnection() error {
 	broker.err = nil
 	if broker.connection == nil {
-		broker.connection, broker.err = nats.Connect(nats.DefaultURL,
-			nats.MaxReconnects(-1), nats.ReconnectWait(2*time.Second), // Allow infinitely many reconnects
-			nats.Name(GetClientName()))
+		opts, err := NatsOptions(GetClientName())
+		if err != nil {
+			broker.err = err
+			return err
+		}
+		broker.connection, broker.err = nats.Connect(NatsURL(), opts...)
 		if broker.err == nil { // If a new connection has been established, resubscribe
 			for _, svc := range broker.services {
 				broker.SubscribeToUsvcCalls(svc)

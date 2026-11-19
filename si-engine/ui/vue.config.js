@@ -18,7 +18,7 @@ module.exports = {
         changeOrigin: true,
       },
       '^/ws': {
-        target: 'ws://localhost:7499/ws',
+        target: 'ws://localhost:7499',
         ws: true,
         changeOrigin: true,
       },

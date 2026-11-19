@@ -143,8 +143,9 @@ func (svc *JobsService) requestRepoDownload(payload string) (interface{}, error)
 					info := strings.ReplaceAll(text, "\r", "") // First normalize the text by removing all \r
 					parts := strings.Split(info, "\n")
 					for i := 0; i < len(parts)-1; i += 2 {
-						if runtime.GOOS == "windows" {
-							job.Progress.CurrentPath = fmt.Sprintf("%s %s", strings.Split(parts[i], ":")[2], parts[i+1])
+						fields := strings.Split(parts[i], ":")
+						if runtime.GOOS == "windows" && len(fields) > 2 {
+							job.Progress.CurrentPath = fmt.Sprintf("%s %s", fields[2], parts[i+1])
 						} else {
 							job.Progress.CurrentPath = parts[i]
 						}
@@ -153,7 +154,7 @@ func (svc *JobsService) requestRepoDownload(payload string) (interface{}, error)
 					job.Progress.ErrorMessage = "INFECTED"
 					svc.PublishData("event.jobs.infected", job)
 					svc.LogError(fmt.Sprintf("Repository %d failed", repo.ID), fmt.Errorf("INFECTED data is not available at inner side, cause: %s", text))
-					svc.LogInfection(fmt.Sprintf("Repository %d has INFECTED data", repo.ID), text)
+					svc.LogInfection(fmt.Sprintf("Repository %d has INFECTED data", repo.ID), "%s", text)
 				} else if exitcode == 2 {
 					job.Progress.ErrorMessage = "FAILED"
 					svc.PublishData("event.jobs.failed", job)

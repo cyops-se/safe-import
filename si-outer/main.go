@@ -24,7 +24,7 @@ func main() {
 	usvc.GitCommit = GitCommit
 
 	if *version {
-		fmt.Printf("si-gatekeeper version %s, commit %s\n", usvc.GitVersion, usvc.GitCommit)
+		fmt.Printf("si-outer version %s, commit %s\n", usvc.GitVersion, usvc.GitCommit)
 		return
 	}
 
@@ -32,7 +32,10 @@ func main() {
 	system.Init()
 
 	broker := &usvc.UsvcBroker{}
-	broker.Initialize()
+	if err := broker.Initialize(); err != nil {
+		fmt.Println("Failed to initialize NATS broker:", err)
+		os.Exit(1)
+	}
 	broker.SetTimeout(30)
 
 	jobsvc := &services.JobsService{}
@@ -41,7 +44,7 @@ func main() {
 	// reposvc := &services.RepoService{}
 	// reposvc.Initialize(broker)
 
-	c := make(chan os.Signal)
+	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	<-c
 
