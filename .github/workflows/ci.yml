@@ -13,7 +13,7 @@ jobs:
     name: Go build, vet and test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-go@v6
         with:
@@ -44,7 +44,7 @@ jobs:
     name: Go security analysis
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-go@v6
         with:
@@ -79,7 +79,7 @@ jobs:
       run:
         working-directory: si-engine/ui
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-node@v5
         with:
@@ -111,6 +111,6 @@ jobs:
       matrix:
         component: [si-engine, si-inner, si-outer, si-gatekeeper]
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Build ${{ matrix.component }}
         run: docker build --target ${{ matrix.component }} -t safe-import/${{ matrix.component }}:ci .
