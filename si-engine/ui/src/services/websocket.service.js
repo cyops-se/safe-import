@@ -1,49 +1,71 @@
 /**
- * Service to call HTTP request via Axios
+ * Server push over websocket. The connection is authenticated with the JWT
+ * (passed as a query parameter since browsers can not set websocket headers)
+ * and is automatically re-established with back-off when it is lost.
  */
-console.log('window.location: ' + window.location.host)
+import JwtService from '@/services/jwt.service'
+
+const MAX_RETRY_DELAY = 30000
+
 const WebsocketService = {
-  baseURL: 'ws://' + window.location.hostname + ':7499/ws',
   connection: null,
-  subscriptions: [],
+  subscriptions: {},
+  retryDelay: 1000,
+  retryTimer: null,
+  stopped: false,
 
-  /**
-   * Set the default HTTP request headers
-   */
-  connect: function () {
-    this.connection = new WebSocket(this.baseURL)
-    this.connection.onmessage = this.onmessage
-    this.connection.onopen = this.onopen
-    this.connection.onclose = this.onclose
-    this.connection.subscriptions = this.subscriptions
+  url () {
+    const scheme = window.location.protocol === 'https:' ? 'wss://' : 'ws://'
+    const token = encodeURIComponent(JwtService.getToken() || '')
+    return scheme + window.location.host + '/ws?token=' + token
   },
 
-  onopen: function () {
-    console.log('Websocket successfully connected')
+  connect () {
+    if (!JwtService.getToken()) return
+    if (this.connection && this.connection.readyState <= WebSocket.OPEN) return
+
+    this.stopped = false
+    this.connection = new WebSocket(this.url())
+    this.connection.onmessage = event => this.onmessage(event)
+    this.connection.onopen = () => {
+      this.retryDelay = 1000
+    }
+    this.connection.onclose = () => this.scheduleReconnect()
   },
 
-  onclose: function () {
-    console.log('Websocket  closed: ')
+  disconnect () {
+    this.stopped = true
+    clearTimeout(this.retryTimer)
+    if (this.connection) this.connection.close()
+    this.connection = null
   },
 
-  onmessage: function (event) {
+  scheduleReconnect () {
+    if (this.stopped) return
+    clearTimeout(this.retryTimer)
+    this.retryTimer = setTimeout(() => this.connect(), this.retryDelay)
+    this.retryDelay = Math.min(this.retryDelay * 2, MAX_RETRY_DELAY)
+  },
+
+  onmessage (event) {
     if (!event || !event.data) return
-    var data = JSON.parse(event.data)
+    let data
+    try {
+      data = JSON.parse(event.data)
+    } catch (e) {
+      return
+    }
 
     if (!data || !data.topic || !data.data) return
-    var message = data.data.message
-
-    if (this.subscriptions) {
-      const subs = this.subscriptions[data.topic]
-      if (subs) {
-        for (var i = 0; i < subs.length; i++) {
-          subs[i](data.topic, message)
-        }
+    const subs = this.subscriptions[data.topic]
+    if (subs) {
+      for (let i = 0; i < subs.length; i++) {
+        subs[i](data.topic, data.data.message)
       }
     }
   },
 
-  topic: function (name, callback) {
+  topic (name, callback) {
     if (!this.subscriptions[name]) this.subscriptions[name] = []
     this.subscriptions[name].push(callback)
   },

@@ -1,17 +1,19 @@
-#! /bin/sh
-GIT=COMMIT=`git rev-list --abbrev-commit -1 HEAD`
-GIT_VERSION=`git describe --tags --dirty --always`
+#!/bin/sh
+# Starts all components locally for manual testing (development only).
+# For a production like setup use docker compose, see README.md.
+# Run build/buildall.sh first. Stop everything with Ctrl+C.
+set -eu
+cd "$(dirname "$0")/.."
+ROOT=$(pwd)
+
+trap 'kill 0' INT TERM EXIT
+
 nats-server &
 sleep 1
-CWD=`pwd`
-cd $CWD/si-outer
-./si-outer &
+(cd "$ROOT/si-outer" && ./si-outer) &
 sleep 1
-cd $CWD/si-inner
-sudo ./si-inner &
+(cd "$ROOT/si-inner" && sudo --preserve-env ./si-inner) &
 sleep 1
-cd $CWD/si-gatekeeper
-./si-gatekeeper &
+(cd "$ROOT/si-gatekeeper" && ./si-gatekeeper) &
 sleep 1
-cd $CWD/si-engine
-./si-engine
+(cd "$ROOT/si-engine" && ./si-engine)

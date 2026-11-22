@@ -1,12 +1,13 @@
+//go:build windows
 // +build windows
 
 package usvc
 
 import (
-	"time"
 	"github.com/cyops-se/safe-import/usvc/types"
 	"github.com/nats-io/nats.go"
 	"golang.org/x/sys/windows/svc/debug"
+	"time"
 )
 
 type UsvcBroker struct {
@@ -14,7 +15,7 @@ type UsvcBroker struct {
 	hostname      string
 	services      map[string]Usvc
 	servicestates map[string]*types.UsvcState
-	lastcheck	  time.Time
+	lastcheck     time.Time
 	connection    *nats.Conn
 	timeout       uint // seconds
 	err           error

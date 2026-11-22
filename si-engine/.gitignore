@@ -17,4 +17,5 @@
 *.db-journal
 
 # Vuetify webpack content changes at every build
-**/static/*
+web/admin/static/*
+!web/admin/static/.gitkeep

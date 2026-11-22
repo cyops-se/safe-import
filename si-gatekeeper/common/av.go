@@ -8,35 +8,61 @@ import (
 	"github.com/cyops-se/safe-import/si-gatekeeper/types"
 )
 
+// Scan scans a file with ClamAV. A non-nil error means the file must NOT be used: either
+// an infection was found (exit code 1) or the scan could not be completed (any other code).
 func Scan(localfile string) (error, int, []types.InfectionInfo) {
+	err, exitcode, out := system.Run(system.CMD_CLAMSCAN, localfile)
+	if err == nil {
+		return nil, exitcode, nil
+	}
 
 	var infos []types.InfectionInfo
-	err, exitcode, out := system.Run(system.CMD_CLAMSCAN, localfile)
-	if err != nil {
-		// fmt.Printf("CLAM exited with status code: %d, out: %s", exitcode, string(out))
-		text := string(out)
-		if exitcode == 1 {
-			// Infections are reported from ClamAV as two lines per found infection separated by \n (and possibly \r)
-			// Lets report each infection individually
-			info := strings.ReplaceAll(text, "\r", "") // First normalize the text by removing all \r
+	if exitcode == 1 {
+		log.Printf("clamdscan returns: %s", string(out))
+		infos = ParseClamOutput(string(out))
+	}
 
-			log.Printf("clamavd returns: %s", info)
+	return err, exitcode, infos
+}
 
-			lines := strings.Split(info, "\n")
-			for i := 0; i < len(lines)-1; i += 2 {
-				parts := strings.Split(lines[i], ":")
-				entry := &types.InfectionInfo{}
-				entry.VirusName = parts[len(parts)-1]
-				entry.Filename = parts[len(parts)-2]
+// ParseClamOutput parses the output of 'clamdscan -i --no-summary --move=<dir>', which
+// for each infected file prints:
+//
+//	/path/to/file: Virus.Name FOUND
+//	/path/to/file: moved to '/quarantine/file'
+//
+// Unknown lines are ignored. File names may contain ':' so the last ": " is used as separator.
+func ParseClamOutput(text string) []types.InfectionInfo {
+	var infos []types.InfectionInfo
+	index := make(map[string]int) // file name -> index in infos
 
-				parts = strings.Split(lines[i+1], " moved to ")
-				entry.OriginalPath = parts[0]
-				entry.QuarantinePath = parts[1]
+	text = strings.ReplaceAll(text, "\r", "")
+	for _, line := range strings.Split(text, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
 
-				infos = append(infos, *entry)
+		if strings.HasSuffix(line, " FOUND") {
+			sep := strings.LastIndex(line, ": ")
+			if sep <= 0 {
+				continue
+			}
+			filename := line[:sep]
+			virus := strings.TrimSpace(strings.TrimSuffix(line[sep+2:], " FOUND"))
+			index[filename] = len(infos)
+			infos = append(infos, types.InfectionInfo{Filename: filename, OriginalPath: filename, VirusName: virus})
+			continue
+		}
+
+		if sep := strings.Index(line, ": moved to "); sep > 0 {
+			filename := line[:sep]
+			dest := strings.Trim(strings.TrimSpace(line[sep+len(": moved to "):]), "'\"")
+			if i, ok := index[filename]; ok {
+				infos[i].QuarantinePath = dest
 			}
 		}
 	}
 
-	return err, exitcode, infos
+	return infos
 }

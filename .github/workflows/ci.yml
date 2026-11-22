@@ -1,0 +1,116 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  go:
+    name: Go build, vet and test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-go@v6
+        with:
+          # Always the latest patch release, so that govulncheck does not report
+          # vulnerabilities in the standard library that are already fixed
+          go-version: stable
+          check-latest: true
+
+      - name: Check formatting
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "The following files are not gofmt formatted:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: Build
+        run: CGO_ENABLED=0 go build ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test -race -count=1 ./...
+
+  go-security:
+    name: Go security analysis
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-go@v6
+        with:
+          # Always the latest patch release, so that govulncheck does not report
+          # vulnerabilities in the standard library that are already fixed
+          go-version: stable
+          check-latest: true
+
+      - name: govulncheck (known vulnerabilities in dependencies)
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...
+
+      - name: staticcheck
+        # Not blocking until the existing findings have been cleaned up
+        continue-on-error: true
+        run: |
+          go install honnef.co/go/tools/cmd/staticcheck@latest
+          staticcheck ./...
+
+      - name: gosec
+        # Not blocking until the existing findings have been triaged
+        continue-on-error: true
+        run: |
+          go install github.com/securego/gosec/v2/cmd/gosec@latest
+          gosec -exclude-dir=usvc/examples ./...
+
+  ui:
+    name: Web UI lint and build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: si-engine/ui
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: si-engine/ui/package-lock.json
+
+      - run: npm ci --no-audit --no-fund
+
+      - name: Lint
+        run: npx vue-cli-service lint --no-fix --max-warnings 0
+
+      - name: Build
+        run: npx vue-cli-service build --dest ../web/admin/static --no-clean
+        env:
+          NODE_OPTIONS: --openssl-legacy-provider
+
+      - name: Audit production dependencies
+        # Vue 2 is end of life, so some advisories can not be fixed without migrating to Vue 3
+        continue-on-error: true
+        run: npm audit --omit=dev --audit-level=high
+
+  docker:
+    name: Docker images
+    runs-on: ubuntu-latest
+    needs: [go, ui]
+    strategy:
+      fail-fast: false
+      matrix:
+        component: [si-engine, si-inner, si-outer, si-gatekeeper]
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build ${{ matrix.component }}
+        run: docker build --target ${{ matrix.component }} -t safe-import/${{ matrix.component }}:ci .

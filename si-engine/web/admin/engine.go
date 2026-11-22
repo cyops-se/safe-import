@@ -1,93 +1,116 @@
 package admin
 
 import (
-	"container/list"
 	"embed"
 	"encoding/json"
 	"io/fs"
 	"log"
 	"net/http"
 
-	jwt "github.com/appleboy/gin-jwt/v2"
 	db "github.com/cyops-se/safe-import/si-engine/web/admin/db"
 	"github.com/cyops-se/safe-import/si-engine/web/admin/routes"
 	"github.com/cyops-se/safe-import/usvc"
 	"github.com/nats-io/nats.go"
 
 	"github.com/gin-gonic/gin"
-	"github.com/gorilla/websocket"
 )
 
-//go:embed static/index.html
-var admin string
-
-//go:embed static/*
+// The UI is built into the static folder by build.sh (or the Dockerfile). The folder
+// only contains a placeholder in version control.
+//
+//go:embed all:static
 var static embed.FS
 
-func Run(broker *usvc.UsvcBroker) {
-	db.ConnectDatabase()
+// Run starts the admin web server and blocks until it fails
+func Run(broker *usvc.UsvcBroker, cfg *Config) error {
+	if err := db.ConnectDatabase(cfg.DBPath); err != nil {
+		return err
+	}
 
-	// http.FS can be used to create a http Filesystem
-	subFS2, _ := fs.Sub(static, "static")
-	var staticFS = http.FS(subFS2)
+	r, err := NewRouter(cfg, broker)
+	if err != nil {
+		return err
+	}
 
-	// fmt.Println("STARTING ADMIN WEB")
-	Log("info", "STARTING ADMIN WEB", "")
-	connections := list.New()
+	Log("info", "STARTING ADMIN WEB", cfg.ListenAddr)
+	return r.Run(cfg.ListenAddr)
+}
 
-	r := gin.Default()
-	r.StaticFS("/ui", staticFS)
-	// r.Static("/ui", "./dist")
+// NewRouter sets up all HTTP routes. The database must be connected. If broker is nil
+// (unit tests), the routes and subscriptions that need the message bus are left out.
+func NewRouter(cfg *Config, broker *usvc.UsvcBroker) (*gin.Engine, error) {
+	subFS, err := fs.Sub(static, "static")
+	if err != nil {
+		return nil, err
+	}
 
-	authMiddleware, _ := jwt.New(JWT)
-	authMiddleware.MiddlewareInit()
+	if _, err := fs.Stat(subFS, "index.html"); err != nil {
+		log.Println("WARNING: the web UI is not included in this build, run si-engine/build.sh")
+	}
+
+	hub := NewHub()
+
+	r := gin.New()
+	r.Use(gin.Logger(), gin.Recovery(), securityHeaders)
+	r.StaticFS("/ui", http.FS(subFS))
+
+	authMiddleware, err := NewJWTMiddleware(cfg)
+	if err != nil {
+		return nil, err
+	}
 
 	r.GET("/ws", func(c *gin.Context) {
-		WShandler(c.Writer, c.Request, connections)
+		WShandler(c.Writer, c.Request, hub, authMiddleware, cfg)
 	})
 
 	routes.RegisterAuthRoutes(r, authMiddleware)
-	routes.RegisterMiscRoutes(r, broker, connections)
 
 	api := r.Group("/api")
 	api.Use(authMiddleware.MiddlewareFunc())
 	{
 		routes.RegisterUserRoutes(api)
 		routes.RegisterLogRoutes(api)
-		routes.RegisterDnsRoutes(api, broker)
-		routes.RegisterHttpRoutes(api, broker)
-		routes.RegisterReposRoutes(api, broker)
-		routes.RegisterJobsRoutes(api, broker)
-		// routes.RegisterPKIRoutes(api)
 		routes.RegisterSystemRoutes(api)
+		if broker != nil {
+			routes.RegisterDnsRoutes(api, broker)
+			routes.RegisterHttpRoutes(api, broker)
+			routes.RegisterReposRoutes(api, broker)
+			routes.RegisterJobsRoutes(api, broker)
+		}
 	}
 
-	broker.Subscribe(">", func(m *nats.Msg) {
-		if m.Subject != "system.heartbeat" {
-			// fmt.Println("NATS message: ", m.Subject, string(m.Data))
-		}
+	if broker != nil {
+		// Forward bus messages to the (authenticated) websocket clients
+		broker.Subscribe(">", func(m *nats.Msg) {
+			if hub.Count() == 0 {
+				return
+			}
+			hub.Broadcast(gin.H{"topic": m.Subject, "data": gin.H{"message": string(m.Data)}})
+		})
 
-		msg := gin.H{"topic": m.Subject, "data": gin.H{"message": string(m.Data)}}
-		for e := connections.Front(); e != nil; e = e.Next() {
-			conn := e.Value.(*websocket.Conn)
-			conn.WriteJSON(msg)
-		}
+		broker.Subscribe("log.>", func(m *nats.Msg) {
+			var entry db.Log
+			if err := json.Unmarshal(m.Data, &entry); err != nil {
+				log.Println("ERROR: Failed to unmarshal log entry:", string(m.Data), err)
+				return
+			}
+
+			db.DB.Create(&entry)
+		})
+	}
+
+	r.NoRoute(func(c *gin.Context) {
+		c.JSON(http.StatusNotFound, gin.H{"code": "PAGE_NOT_FOUND", "message": "Page not found"})
 	})
 
-	broker.Subscribe("log.>", func(m *nats.Msg) {
-		var entry db.Log
-		if err := json.Unmarshal(m.Data, &entry); err != nil {
-			log.Println("ERROR: Failed to unmarshal log entry:", string(m.Data), err)
-		}
+	return r, nil
+}
 
-		db.DB.Create(&entry)
-	})
-
-	r.NoRoute(authMiddleware.MiddlewareFunc(), func(c *gin.Context) {
-		claims := jwt.ExtractClaims(c)
-		log.Printf("NoRoute claims: %#v\n", claims)
-		c.JSON(404, gin.H{"code": "PAGE_NOT_FOUND", "message": "Page not found"})
-	})
-
-	r.Run(":7499")
+// securityHeaders adds basic security related HTTP headers to all responses
+func securityHeaders(c *gin.Context) {
+	h := c.Writer.Header()
+	h.Set("X-Content-Type-Options", "nosniff")
+	h.Set("X-Frame-Options", "DENY")
+	h.Set("Referrer-Policy", "no-referrer")
+	c.Next()
 }

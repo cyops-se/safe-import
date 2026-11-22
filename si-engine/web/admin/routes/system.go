@@ -6,9 +6,9 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type SystemInformation struct  {
+type SystemInformation struct {
 	GitVersion string `json:"gitversion"`
-	GitCommit string `json:"gitcommit"`
+	GitCommit  string `json:"gitcommit"`
 }
 
 var SysInfo SystemInformation

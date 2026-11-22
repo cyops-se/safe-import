@@ -2,7 +2,7 @@ package common
 
 import (
 	"github.com/cyops-se/safe-import/si-gatekeeper/types"
-	"gorm.io/driver/sqlite"
+	sqlite "github.com/glebarez/sqlite"
 	"gorm.io/gorm"
 )
 
