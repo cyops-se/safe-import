@@ -15,7 +15,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7
         with:
           # Always the latest patch release, so that govulncheck does not report
           # vulnerabilities in the standard library that are already fixed
@@ -46,7 +46,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7
         with:
           # Always the latest patch release, so that govulncheck does not report
           # vulnerabilities in the standard library that are already fixed
